@@ -10,6 +10,16 @@ path_provider: ^2.0.6
 
 pointycastle: ^3.3.5
 
+The benchmark shows: it takes much to long to read and write the data in chunks
+
+// read & write all data in one step for 1 mb file
+
+flutter: step 6 load data RAF elapsed: 4597
+
+flutter: step 7 write data RAF elapsed: 1742
+
+flutter: step 9 read - write in chunks RAF elapsed: 6089843
+
 A new Flutter project.
 
 ## Getting Started

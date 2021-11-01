@@ -139,13 +139,14 @@ class _MyHomePageState extends State<MyHomePage> {
           print('\n3 load data from file using file.io');
           // read the file
           final step3 = Stopwatch()..start();
+          var step3Elapsed;
           try{
             Uint8List bytesLoad;
             //String myPath= 'MyPath/abc.png';
             _readUint8List(file).then((bytesData) {
               bytesLoad = bytesData;
               //do your task here
-              var step3Elapsed = step3.elapsed;
+              step3Elapsed = step3.elapsed;
               print('bytesLoad length: ' + bytesLoad.length.toString());
               //print('data:\n' + bytesToHex(bytesLoad));
               print('step 3 elapsed: ' + step3Elapsed.inMicroseconds.toString());
@@ -200,8 +201,91 @@ class _MyHomePageState extends State<MyHomePage> {
           print('step 7 elapsed: ' + step7Elapsed.inMicroseconds.toString());
 
           // todo manual ECB/CBC encryption in chunks
+          print('step 8 calculate number of operations');
+          var dataLength = data1000.length;
+          print('dataLength: ' + dataLength.toString());
+          int fullRounds = dataLength ~/ 16; // gives an integer value, does not round up
+          print('full rounds: ' + fullRounds.toString());
+          var remainder = dataLength % 16;
+          print('remainder: ' + remainder.toString());
+          // calculate how many times we need to run ECB and how many CBC with padding
+          // if fullRounds = 1 and remainder = 0 then just one CBC round
+          // if remainder = 0 it's meaning the last one has to be the CBC
+          // if remainder > 0 all full rounds were used with ECB and the remainder one with CBCpadding
+          var ecbRounds = 0;
+          var cbcRounds = 0;
+          if (dataLength < 16) {
+            ecbRounds = 0;
+            cbcRounds = 1;
+          } else {
+            ecbRounds = fullRounds; // to start with
+            if (remainder == 0) {
+              ecbRounds = ecbRounds - 1;
+              cbcRounds = 1;
+            } else {
+              cbcRounds = 1;
+            }
+          }
+          print('ecbRounds: ' + ecbRounds.toString());
+          print('cbcRounds: ' + cbcRounds.toString());
+
+          int positionToRead = 0; // starting at position 0 on file
+          int numberToRead = 16; // needs to get changed when file size < 16
+
+          print('step 9 read and write the data in chunks');
+          // setup the RAFs to read the data and write the encrypted data
+          File fileRAFRead = File('${directory.path}/file1.txt');
+          File fileRAFWrite = File('${directory.path}/file1enc.txt');
+          final step9 = Stopwatch()..start();
+          RandomAccessFile rafRead = await fileRAFRead.open(mode: FileMode.read);
+          RandomAccessFile rafWrite = await fileRAFWrite.open(mode: FileMode.write);
+
+          print('ECB rounds starting');
+          for (var rounds = 0; rounds < ecbRounds; rounds++) {
+            await rafRead.setPosition(positionToRead); // from position 0
+            Uint8List bytesLoad16 = await rafRead.read(numberToRead); // reading all bytes
+            // here the ecb encryption will run
+            await rafWrite.writeFrom(bytesLoad16);
+            positionToRead = positionToRead + numberToRead; // add 16 for each round
+          }
+          numberToRead = (dataLength - (ecbRounds * 16));
+          print('remaining bytes to load: ' + numberToRead.toString());
+          print('CBC round starting');
+          for (var rounds = 0; rounds < cbcRounds; rounds++) {
+            await rafRead.setPosition(positionToRead); // from position 0
+            Uint8List bytesLoad16 = await rafRead.read(numberToRead); // reading all bytes
+            // here the ecb encryption will run
+            await rafWrite.writeFrom(bytesLoad16);
+            positionToRead = positionToRead + numberToRead;
+          }
+          //await rafWrite.flush();
+          //await rafWrite.close();
+          //await rafRead.close();
+          var step9Elapsed = step9.elapsed;
+          print('step 9 elapsed: ' + step9Elapsed.inMicroseconds.toString());
+
+          var fileReadLength = await fileRAFRead.length();
+          print('fileReadLength:  ' + fileReadLength.toString());
+          var fileWriteLength = await fileRAFWrite.length();
+          print('fileWriteLength: ' + fileWriteLength.toString());
 
 
+          // print out all again
+          print('');
+          print('*********** benchmark all steps ************');
+          print('step 1 generate data elapsed: ' + step1Elapsed.inMicroseconds.toString());
+          print('step 1 data size generated:   ' + data1000.length.toString() + ' bytes');
+          print('step 2 write data file.io elapsed: ' + step2Elapsed.inMicroseconds.toString());
+          print('step 3 load data file.io elapsed: ' + step3Elapsed.inMicroseconds.toString());
+          print('step 4 encrypt all elapsed: ' + step4Elapsed.inMicroseconds.toString());
+          print('step 5 decrypt all elapsed: ' + step5Elapsed.inMicroseconds.toString());
+          print('step 6 load data RAF elapsed: ' + step6Elapsed.inMicroseconds.toString());
+          print('step 7 write data RAF elapsed: ' + step7Elapsed.inMicroseconds.toString());
+
+          print('step 9 read - write in chunks RAF elapsed: ' + step9Elapsed.inMicroseconds.toString());
+
+
+          print('*********** benchmark all steps finished ************');
         },
         tooltip: 'Increment',
         child: const Icon(Icons.add),
@@ -227,6 +311,28 @@ class _MyHomePageState extends State<MyHomePage> {
     paddingCipher.init(false, paddingParams);
     final plaintext = paddingCipher.process(ciphertextUint8);
     return plaintext;
+  }
+
+  Uint8List aesEcbEncryptionNoPaddingToUint8List(Uint8List key, Uint8List plaintextUint8) {
+    // no padding
+    pc.BlockCipher cipher = pc.ECBBlockCipher(pc.AESFastEngine());
+    cipher.init(
+      true,
+      pc.KeyParameter(key),
+    );
+    Uint8List cipherText = cipher.process(plaintextUint8);
+    return cipherText;
+  }
+
+  Uint8List aesEcbDecryptionNoPaddingToUint8List(Uint8List key, Uint8List ciphertextUint8) {
+    // no padding
+    pc.BlockCipher cipher = pc.ECBBlockCipher(pc.AESFastEngine());
+    cipher.init(
+      false,
+      pc.KeyParameter(key),
+    );
+    Uint8List plainText = cipher.process(ciphertextUint8);
+    return plainText;
   }
 
   Uint8List generateRandom1000Byte() {
@@ -303,5 +409,7 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     return bytes;
   }
+
+
 
 }
