@@ -20,6 +20,25 @@ flutter: step 7 write data RAF elapsed: 1742
 
 flutter: step 9 read - write in chunks RAF elapsed: 6089843
 
+This version uses additionally https://pub.dev/packages/aes_crypt but this is not null safety
+
+Someone added support for this: https://pub.dev/packages/aes_crypt_null_safe
+
+file encryption runs but on Asynchronus mode it runs into error
+
+Unhandled Exception: type 'Future<int?>' is not a subtype of type 'FutureOr<int>' in type cast
+
+#0      _Cryptor._readKeys (package:aes_crypt_null_safe/src/cryptor.dart:1279:56)
+<asynchronous suspension>
+
+#1      _Cryptor.decryptFile (package:aes_crypt_null_safe/src/cryptor.dart:588:34)
+<asynchronous suspension>
+
+#2      AesCrypt.decryptFile (package:aes_crypt_null_safe/src/aescrypt.dart:356:12)
+<asynchronous suspension>
+
+aes_crypt_null_safe: ^2.0.1
+
 A new Flutter project.
 
 ## Getting Started
