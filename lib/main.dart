@@ -3,10 +3,11 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:convert/convert.dart';
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+
 import 'package:pointycastle/export.dart' as pc;
-import 'package:aes_crypt_null_safe/aes_crypt_null_safe.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,7 +33,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page 3'),
+      home: const MyHomePage(title: 'fc_file_encryption5_pc'),
     );
   }
 }
@@ -124,17 +125,18 @@ class _MyHomePageState extends State<MyHomePage> {
           // here is the 1000 byte long random data
           final step1 = Stopwatch()..start();
           //Uint8List data1000 = generateRandom1000Byte();
-          Uint8List data1000 = generateRandomByte(1024 * 1024); // 1 mb
+          Uint8List data1mb = generateRandomByte(1024 * 1024); // 1 mb
           //Uint8List data1000 = generateRandomByte(1024);
           var step1Elapsed = step1.elapsed;
-          print('data1000 length: ' + data1000.length.toString());
+          //print('data1000 length: ' + data1000.length.toString());
+          print('data1mb length: ' + data1mb.length.toString());
           //print('data:\n' + bytesToHex(data1000));
           print('step 1 elapsed: ' + step1Elapsed.inMicroseconds.toString());
 
           print('\n2 write data to file using file.io');
           // write the file
           final step2 = Stopwatch()..start();
-          await _writeUint8List(file, data1000);
+          await _writeUint8List(file, data1mb);
           var step2Elapsed = step2.elapsed;
           print('step 2 elapsed: ' + step2Elapsed.inMicroseconds.toString());
 
@@ -166,7 +168,7 @@ class _MyHomePageState extends State<MyHomePage> {
           Uint8List key = createUint8ListFromString(keyString);
           Uint8List iv = createUint8ListFromString(ivString);
           final step4 = Stopwatch()..start();
-          Uint8List ct = aesCbcEncryptionToUint8List(key, iv, data1000);
+          Uint8List ct = aesCbcEncryptionToUint8List(key, iv, data1mb);
           var step4Elapsed = step4.elapsed;
           print('ct length: ' + ct.length.toString());
           print('step 4 elapsed: ' + step4Elapsed.inMicroseconds.toString());
@@ -198,136 +200,226 @@ class _MyHomePageState extends State<MyHomePage> {
           File file2RAF = File('${directory.path}/file2.txt');
           final step7 = Stopwatch()..start();
           RandomAccessFile raf2 = await file2RAF.open(mode: FileMode.write);
-          await raf2.writeFrom(data1000);
+          //await raf2.writeFrom(data1mb);
+          await raf2.writeFrom(ct);
           await raf2.flush();
           await raf2.close();
           var step7Elapsed = step7.elapsed;
           print('step 7 elapsed: ' + step7Elapsed.inMicroseconds.toString());
 
-          // todo manual ECB/CBC encryption in chunks
-          print('step 8 calculate number of operations');
-          var dataLength = data1000.length;
-          print('dataLength: ' + dataLength.toString());
-          int fullRounds =
-              dataLength ~/ 16; // gives an integer value, does not round up
-          print('full rounds: ' + fullRounds.toString());
-          var remainder = dataLength % 16;
-          print('remainder: ' + remainder.toString());
-          // calculate how many times we need to run ECB and how many CBC with padding
-          // if fullRounds = 1 and remainder = 0 then just one CBC round
-          // if remainder = 0 it's meaning the last one has to be the CBC
-          // if remainder > 0 all full rounds were used with ECB and the remainder one with CBCpadding
-          var ecbRounds = 0;
-          var cbcRounds = 0;
-          if (dataLength < 16) {
-            ecbRounds = 0;
-            cbcRounds = 1;
-          } else {
-            ecbRounds = fullRounds; // to start with
-            if (remainder == 0) {
-              ecbRounds = ecbRounds - 1;
-              cbcRounds = 1;
-            } else {
-              cbcRounds = 1;
-            }
+          // load file in chunks, encrypt, store to file
+          print('\n8 load file in chunks, encrypt, store to file using RandomAccessFile');
+          File fileRAFStep8R = File('${directory.path}/file1.txt');
+          File fileRAFStep8W = File('${directory.path}/file8e.txt');
+          final step8 = Stopwatch()..start();
+          RandomAccessFile rafStep8R = await fileRAFStep8R.open(mode: FileMode.read);
+          RandomAccessFile rafStep8W = await fileRAFStep8W.open(mode: FileMode.write);
+          var fileRStep8Length = await fileRAFStep8R.length();
+          print('fileRStep8 length: ' + fileRStep8Length.toString());
+          await rafStep8R.setPosition(0); // from position 0
+          // calculate rounds
+          int bufferStep8Length = 2048;
+          print('8 buffer size: ' + bufferStep8Length.toString());
+          int fullRoundsStep8 = fileRStep8Length ~/ bufferStep8Length;
+          print('8 fullRounds: ' + fullRoundsStep8.toString());
+          int remainderLastRoundStep8 = (fileRStep8Length % bufferStep8Length) as int;
+          print('8 remainderLastRoundStep8: ' + remainderLastRoundStep8.toString());
+          String keyS8String = '12345678123456781234567812345678'; // 32 chars
+          String ivS8String = '7654321076543210'; // 16 chars
+          Uint8List keyS8 = createUint8ListFromString(keyS8String);
+          Uint8List ivS8 = createUint8ListFromString(ivS8String);
+
+          // pointycastle setup
+          final pc.CBCBlockCipher cipher =
+          new pc.CBCBlockCipher(new pc.AESEngine());
+          pc.ParametersWithIV<pc.KeyParameter> cbcParams =
+          new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(keyS8), ivS8);
+          pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
+          paddingParams = new pc.PaddedBlockCipherParameters<
+              pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
+          pc.PaddedBlockCipherImpl paddingCipher =
+          new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
+          paddingCipher.init(true, paddingParams);
+
+          // now lets read in chunks
+          for (int rounds = 0; rounds < fullRoundsStep8; rounds++) {
+            Uint8List bytesLoadStep8 = await rafStep8R.read(bufferStep8Length);
+            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 Length: ' + bytesLoadStep8.length.toString());
+            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 hex: ' + bytesToHex(bytesLoadStep8));
+            Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8);
+            await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
           }
-          print('ecbRounds: ' + ecbRounds.toString());
-          print('cbcRounds: ' + cbcRounds.toString());
 
-          int positionToRead = 0; // starting at position 0 on file
-          int numberToRead = 16; // needs to get changed when file size < 16
+          /* funktioniert nicht bei -1
+          // last one
+          print('8 remainderLastRoundStep8 Length: ' + remainderLastRoundStep8.toString());
+          Uint8List bytesLoadStep8 = await rafStep8R.read(remainderLastRoundStep8);
+          Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8);
+          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
 
-          print('step 9 read and write the data in chunks');
-          print('*** skipped ***');
+          Uint8List step8Final = Uint8List(16);
+          step8Final = paddingCipher.process(Uint8List(0));
+          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
+
+           */
+
+          /* funktioniert */
+          // die ersten runden waren mit einem buffer von 2048 byte
+          // die letzte runde wird in 16er blöcke geteilt
+
+          int lastRoundsStep8 = remainderLastRoundStep8 ~/ 16;
+          for (int rounds = 0; rounds < lastRoundsStep8; rounds++) {
+            Uint8List bytesLoadStep8 = await rafStep8R.read(16);
+            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 Length: ' + bytesLoadStep8.length.toString());
+            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 hex: ' + bytesToHex(bytesLoadStep8));
+            Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8);
+            await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
+          }
+          // now its time for the final step
+          int bytesToLoadFinal = remainderLastRoundStep8 - (lastRoundsStep8 * 16);
+          print('8 bytesToLoadFinal: ' + bytesToLoadFinal.toString());
+          Uint8List bytesLoadStep8Final = await rafStep8R.read(bytesToLoadFinal);
+          //Uint8List bytesLoadStep8Final = await rafStep8R.read(remainderLastRoundStep8);
+          Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8Final);
+          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
+          Uint8List step8Final = Uint8List(16);
+          int step8FinalLength = paddingCipher.doFinal(Uint8List(0), 0, step8Final, 0);
+          await rafStep8W.writeFrom(step8Final);
+          /* */
+
+                     /*
+          Uint8List bytesLoadStep8Encrypted = new Uint8List(16);
+          int n = paddingCipher.doFinal(bytesLoadStep8Final, 0 ,bytesLoadStep8Encrypted, 0);
+          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
+           */
+
           /*
-          // setup the RAFs to read the data and write the encrypted data
-          File fileRAFRead = File('${directory.path}/file1.txt');
-          File fileRAFWrite = File('${directory.path}/file1enc.txt');
-          final step9 = Stopwatch()..start();
-          RandomAccessFile rafRead =
-              await fileRAFRead.open(mode: FileMode.read);
-          RandomAccessFile rafWrite =
-              await fileRAFWrite.open(mode: FileMode.write);
+          // run the final encryption
+          Uint8List bytesLoadStep8Last = await rafStep8R.read(bufferStep8Length);
+          int bytesLoadStep8LastLength = bytesLoadStep8Last.length;
+          Uint8List lastRoundEncrypt = new Uint8List(16);
+          //Uint8List lastRoundEncrypt = new Uint8List(bufferStep8Length);
+          print('8 encryption parameters doFinal');
+          print('8 bytesLoadStep8Last: ' + bytesToHex(bytesLoadStep8Last));
+          print('8 bytesLoadStep8LastLength: ' + bytesLoadStep8LastLength.toString());
+          //int lastRoundEncryptLength = paddingCipher.doFinal(bytesLoadStep8Last, 0, lastRoundEncrypt, 0);
+          int lastRoundEncryptLength = paddingCipher.doFinal(bytesLoadStep8Last, 0, lastRoundEncrypt, 0);
+          print('8 lastRoundEncryptLength: ' + lastRoundEncryptLength.toString());
+          //Uint8List lastRoundEncrypt = paddingCipher.process(bytesLoadStep8Last);
+          //print('8 lastRoundDecryptLength: ' + lastRoundEncryptLength.toString());
+          await rafStep8W.writeFrom(lastRoundEncrypt);
+          */
+          await rafStep8W.flush();
+          await rafStep8W.close();
+          await rafStep8R.close();
 
-          print('ECB rounds starting');
-          for (var rounds = 0; rounds < ecbRounds; rounds++) {
-            await rafRead.setPosition(positionToRead); // from position 0
-            Uint8List bytesLoad16 =
-                await rafRead.read(numberToRead); // reading all bytes
-            // here the ecb encryption will run
-            await rafWrite.writeFrom(bytesLoad16);
-            positionToRead =
-                positionToRead + numberToRead; // add 16 for each round
+          var step8Elapsed = step8.elapsed;
+          print('step 8 elapsed: ' + step8Elapsed.inMicroseconds.toString());
+
+          print('\n9 load file in chunks, decrypt, store to file using RandomAccessFile');
+          File fileRAFStep9R = File('${directory.path}/file8e.txt');
+          File fileRAFStep9W = File('${directory.path}/file8d.txt');
+          final step9 = Stopwatch()..start();
+          RandomAccessFile rafStep9R = await fileRAFStep9R.open(mode: FileMode.read);
+          RandomAccessFile rafStep9W = await fileRAFStep9W.open(mode: FileMode.write);
+          var fileRStep9Length = await fileRAFStep9R.length();
+          print('fileRStep9 length: ' + fileRStep9Length.toString());
+          await rafStep9R.setPosition(0); // from position 0
+          // calculate rounds
+          int bufferStep9Length = 2048;
+          print('9 buffer size: ' + bufferStep9Length.toString());
+          int fullRoundsStep9 = fileRStep9Length ~/ bufferStep9Length;
+          print('9 fullRounds: ' + fullRoundsStep9.toString());
+          int remainderLastRoundStep9 = (fileRStep9Length % bufferStep9Length) as int;
+          print('9 remainderLastRoundStep9: ' + remainderLastRoundStep9.toString());
+          String keyS9String = '12345678123456781234567812345678'; // 32 chars
+          String ivS9String = '7654321076543210'; // 16 chars
+          Uint8List keyS9 = createUint8ListFromString(keyS9String);
+          Uint8List ivS9 = createUint8ListFromString(ivS9String);
+
+          // pointycastle setup
+          final pc.CBCBlockCipher cipher9 =
+          new pc.CBCBlockCipher(new pc.AESEngine());
+          pc.ParametersWithIV<pc.KeyParameter> cbcParams9 =
+          new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(keyS9), ivS9);
+          pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
+          paddingParams9 = new pc.PaddedBlockCipherParameters<
+              pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
+          pc.PaddedBlockCipherImpl paddingCipher9 =
+          new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher9);
+          paddingCipher9.init(false, paddingParams9);
+
+          // now lets read in chunks
+          for (int rounds = 0; rounds < fullRoundsStep9; rounds++) {
+            Uint8List bytesLoadStep9 = await rafStep9R.read(bufferStep9Length);
+            Uint8List bytesLoadStep9Decrypted = _processBlocks(paddingCipher9, bytesLoadStep9);
+            await rafStep9W.writeFrom(bytesLoadStep9Decrypted);
           }
-          numberToRead = (dataLength - (ecbRounds * 16));
-          print('remaining bytes to load: ' + numberToRead.toString());
-          print('CBC round starting');
-          for (var rounds = 0; rounds < cbcRounds; rounds++) {
-            await rafRead.setPosition(positionToRead); // from position 0
-            Uint8List bytesLoad16 =
-                await rafRead.read(numberToRead); // reading all bytes
-            // here the ecb encryption will run
-            await rafWrite.writeFrom(bytesLoad16);
-            positionToRead = positionToRead + numberToRead;
-          }
-          //await rafWrite.flush();
-          //await rafWrite.close();
-          //await rafRead.close();
+
+          // run the final decryption
+          Uint8List bytesLoadStep9Last = await rafStep9R.read(bufferStep9Length);
+          int bytesLoadStep9LastLength = bytesLoadStep9Last.length;
+          print('9 bytesLoadStep9LastLength: ' + bytesLoadStep9LastLength.toString());
+          //Uint8List lastRoundDecrypt = new Uint8List(bufferStep9Length);
+          Uint8List lastRoundDecrypt = new Uint8List(remainderLastRoundStep9);
+          int lastRoundDecryptLength = paddingCipher9.doFinal(bytesLoadStep9Last, 0, lastRoundDecrypt, 0);
+          print('9 lastRoundDecryptLength: ' + lastRoundDecryptLength.toString());
+          // write only the real decrypted data
+          Uint8List lastRoundDecryptReal = Uint8List.sublistView(lastRoundDecrypt, 0, lastRoundDecryptLength);
+          print('9 lastRoundDecryptRealLength: ' + lastRoundDecryptReal.length.toString());
+          await rafStep9W.writeFrom(lastRoundDecryptReal);
+          await rafStep9W.flush();
+          await rafStep9W.close();
+          await rafStep9R.close();
+
           var step9Elapsed = step9.elapsed;
           print('step 9 elapsed: ' + step9Elapsed.inMicroseconds.toString());
 
-          var fileReadLength = await fileRAFRead.length();
-          print('fileReadLength:  ' + fileReadLength.toString());
-          var fileWriteLength = await fileRAFWrite.length();
-          print('fileWriteLength: ' + fileWriteLength.toString());
-           */
+          // just checking file length
+          File fileRAF8eLength = File('${directory.path}/file8e.txt');
+          RandomAccessFile rafLength = await fileRAF8eLength.open(mode: FileMode.read);
+          var fileRaf8eLength = await rafLength.length();
+          print('8 fileRaf8e length: ' + fileRaf8eLength.toString());
 
-          // step 10
-          print('10 run complete file encryption');
-          print('*** skipped ***');
-          /*
-          String sourcePath = '${directory.path}/file1.txt';
-          String destPath = '${directory.path}/file10.txt';
-          aesFileEncryption(sourcePath, destPath);
-           */
+          File fileRAF8dLength = File('${directory.path}/file8d.txt');
+          RandomAccessFile raf8dLength = await fileRAF8dLength.open(mode: FileMode.read);
+          var fileRaf8dLength = await raf8dLength.length();
+          print('9 fileRaf8d length: ' + fileRaf8dLength.toString());
 
-          // step 11 single file encryption
-          String sourcePath = '${directory.path}/file1.txt';
-          String destPath = '${directory.path}/file11.txt';
-          final step11 = Stopwatch()..start();
-          String resultEnc = aesFileEncryptionOwnSync(sourcePath, destPath);
-          print('*** fileEncryption name: ' + resultEnc);
-          var step11Elapsed = step11.elapsed;
-          print('step 11 elapsed: ' + step11Elapsed.inMicroseconds.toString());
+          // checking sha-256
+          File file8Sha256 = File('${directory.path}/file1.txt');
+          RandomAccessFile rafSha256 = await file8Sha256.open(mode: FileMode.read);
+          await rafSha256.setPosition(0); // from position 0
+          Uint8List bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
+          rafSha256.close();
+          Uint8List file1Sha256 = calculateSha256FromUint8List(bytesLoadSha256);
+          print('8 file1Sha256:    ' + bytesToHex(file1Sha256));
 
-          // step 12 single file decryption
-          //sourcePath = '${directory.path}/file11.txt';
-          sourcePath = resultEnc;
-          destPath = '${directory.path}/file12.txt';
-          final step12 = Stopwatch()..start();
-          String resultDec = aesFileDecryptionOwnSync(sourcePath, destPath);
-          print('*** fileDecryption name: ' + resultDec);
-          var step12Elapsed = step12.elapsed;
-          print('step 12 elapsed: ' + step12Elapsed.inMicroseconds.toString());
+          file8Sha256 = File('${directory.path}/file8e.txt');
+          rafSha256 = await file8Sha256.open(mode: FileMode.read);
+          await rafSha256.setPosition(0); // from position 0
+          bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
+          rafSha256.close();
+          Uint8List file8eSha256 = calculateSha256FromUint8List(bytesLoadSha256);
+          print('8 file8eSha256:   ' + bytesToHex(file8eSha256));
 
-          // step 13 single file encryption ASYNC
-          String sourcePathA = '${directory.path}/file1.txt';
-          String destPathA = '${directory.path}/file11.txt';
-          final step13 = Stopwatch()..start();
-          String resultEncA = await aesFileEncryptionOwn(sourcePathA, destPathA);
-          print('*** fileEncryption name: ' + resultEncA);
-          var step13Elapsed = step13.elapsed;
-          print('step 13 elapsed: ' + step13Elapsed.inMicroseconds.toString());
+          file8Sha256 = File('${directory.path}/file8d.txt');
+          rafSha256 = await file8Sha256.open(mode: FileMode.read);
+          await rafSha256.setPosition(0); // from position 0
+          bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
+          rafSha256.close();
+          Uint8List file8dSha256 = calculateSha256FromUint8List(bytesLoadSha256);
+          print('9 file8dSha256:   ' + bytesToHex(file8dSha256));
 
-          // step 14 single file decryption ASYNC
-          //sourcePath = '${directory.path}/file11.txt';
-          sourcePathA = resultEnc;
-          destPathA = '${directory.path}/file12.txt';
-          final step14 = Stopwatch()..start();
-          String resultDecA = await aesFileDecryptionOwn(sourcePathA, destPathA);
-          print('*** fileDecryption name: ' + resultDecA);
-          var step14Elapsed = step14.elapsed;
-          print('step 14 elapsed: ' + step14Elapsed.inMicroseconds.toString());
+          file8Sha256 = File('${directory.path}/file2.txt');
+          rafSha256 = await file8Sha256.open(mode: FileMode.read);
+          await rafSha256.setPosition(0); // from position 0
+          bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
+          rafSha256.close();
+          Uint8List file2Sha256 = calculateSha256FromUint8List(bytesLoadSha256);
+          print('9 file2Sha256:    ' + bytesToHex(file2Sha256));
+
+
 
 
           // print out all again
@@ -336,7 +428,7 @@ class _MyHomePageState extends State<MyHomePage> {
           print('step 1 generate data elapsed: ' +
               step1Elapsed.inMicroseconds.toString());
           print('step 1 data size generated:   ' +
-              data1000.length.toString() +
+              data1mb.length.toString() +
               ' bytes');
           print('step 2 write data file.io elapsed: ' +
               step2Elapsed.inMicroseconds.toString());
@@ -351,8 +443,12 @@ class _MyHomePageState extends State<MyHomePage> {
           print('step 7 write data RAF elapsed: ' +
               step7Elapsed.inMicroseconds.toString());
 
-          //print('step 9 read - write in chunks RAF elapsed: ' + step9Elapsed.inMicroseconds.toString());
-          print('step 9 read - write in chunks RAF elapsed: skipped');
+          print('step 8 read data in chunks, encrypt, write using RAF elapsed: ' +
+              step8Elapsed.inMicroseconds.toString());
+          print('step 9 read data in chunks, decrypt, write using RAF elapsed: ' +
+              step9Elapsed.inMicroseconds.toString());
+
+/*
           print('step 11 file encryption aes_crypt elapsed SYNC: ' +
               step11Elapsed.inMicroseconds.toString());
           print('step 12 file decryption aes_crypt elapsed SYNC: ' +
@@ -362,7 +458,7 @@ class _MyHomePageState extends State<MyHomePage> {
               step13Elapsed.inMicroseconds.toString());
           print('step 14 file decryption aes_crypt elapsed ASYNC: ' +
               step14Elapsed.inMicroseconds.toString());
-
+*/
           print('*********** benchmark all steps finished ************');
         },
         tooltip: 'Increment',
@@ -371,281 +467,16 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  // just encryption, return encFilepath
-  Future<String> aesFileEncryptionOwn(String sourcePath, String destPath) async {
-    String encFilepath;
-    String decFilepath;
 
-    // The file to be encrypted
-    //String srcFilepath = './example/testfile.txt';
-    String srcFilepath = sourcePath;
-    //decFilepath = dest;
-    print('Unencrypted source file: $srcFilepath');
-    //print('File content: ' + File(srcFilepath).readAsStringSync() + '\n');
-
-    // Creates an instance of AesCrypt class.
-    var crypt = AesCrypt();
-
-    // Sets encryption password.
-    // Optionally you can specify the password when creating an instance
-    // of AesCrypt class like:
-    // var crypt = AesCrypt('my cool password');
-    crypt.setPassword('my cool password');
-
-    // Sets overwrite mode.
-    // It's optional. By default the mode is 'AesCryptOwMode.warn'.
-    //crypt.setOverwriteMode(AesCryptOwMode.warn);
-    crypt.setOverwriteMode(AesCryptOwMode.on); // to overwrite a former one
-
-    try {
-      // Encrypts './example/testfile.txt' file and save encrypted file to a file with
-      // '.aes' extension added. In this case it will be './example/testfile.txt.aes'.
-      // It returns a path to encrypted file.
-      //encFilepath = crypt.encryptFileSync('./example/testfile.txt');
-      encFilepath = await crypt.encryptFile(srcFilepath);
-      print('The encryption has been completed successfully.');
-      print('Encrypted file: $encFilepath');
-    } on AesCryptException catch (e) {
-      // It goes here if overwrite mode set as 'AesCryptFnMode.warn'
-      // and encrypted file already exists.
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The encryption has been completed unsuccessfully.');
-        print(e.message);
-      }
-      return '';
+  Uint8List _processBlocks(pc.BlockCipher cipher, Uint8List inp) {
+    var out = new Uint8List(inp.lengthInBytes);
+    for (var offset = 0; offset < inp.lengthInBytes;) {
+      var len = cipher.processBlock(inp, offset, out, offset);
+      offset += len;
     }
-    return encFilepath;
+    return out;
   }
 
-  // just decryption, return decFilepath
-  Future<String> aesFileDecryptionOwn(String sourcePath, String destPath) async {
-    String encFilepath;
-    String decFilepath = '';
-
-    // The file to be encrypted
-    //String srcFilepath = './example/testfile.txt';
-    encFilepath = sourcePath;
-    //decFilepath = dest;
-
-    print('Encrypted source file: $encFilepath');
-
-    // Creates an instance of AesCrypt class.
-    var crypt = AesCrypt();
-
-    // Sets encryption password.
-    // Optionally you can specify the password when creating an instance
-    // of AesCrypt class like:
-    // var crypt = AesCrypt('my cool password');
-    crypt.setPassword('my cool password');
-
-    // Sets overwrite mode.
-    // It's optional. By default the mode is 'AesCryptOwMode.warn'.
-    //crypt.setOverwriteMode(AesCryptOwMode.warn);
-    crypt.setOverwriteMode(AesCryptOwMode.on); // to overwrite a former one
-
-    try {
-      // Decrypts the file which has been just encrypted and tries to save it under
-      // another name than source file name.
-      //decFilepath = crypt.decryptFileSync(encFilepath, './example/testfile_new.txt');
-      decFilepath = await crypt.decryptFile(encFilepath, destPath);
-      print('The decryption has been completed successfully.');
-      print('Decrypted file 2: $decFilepath');
-      //print('File content: ' + File(decFilepath).readAsStringSync());
-    } on AesCryptException catch (e) {
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The decryption has been completed unsuccessfully.');
-        print(e.message);
-        return '';
-      }
-    }
-    return decFilepath;
-  }
-
-
-  // just encryption, return encFilepath
-  String aesFileEncryptionOwnSync(String sourcePath, String destPath) {
-    String encFilepath;
-    String decFilepath;
-
-    // The file to be encrypted
-    //String srcFilepath = './example/testfile.txt';
-    String srcFilepath = sourcePath;
-    //decFilepath = dest;
-    print('Unencrypted source file: $srcFilepath');
-    //print('File content: ' + File(srcFilepath).readAsStringSync() + '\n');
-
-    // Creates an instance of AesCrypt class.
-    var crypt = AesCrypt();
-
-    // Sets encryption password.
-    // Optionally you can specify the password when creating an instance
-    // of AesCrypt class like:
-    // var crypt = AesCrypt('my cool password');
-    crypt.setPassword('my cool password');
-
-    // Sets overwrite mode.
-    // It's optional. By default the mode is 'AesCryptOwMode.warn'.
-    //crypt.setOverwriteMode(AesCryptOwMode.warn);
-    crypt.setOverwriteMode(AesCryptOwMode.on); // to overwrite a former one
-
-    try {
-      // Encrypts './example/testfile.txt' file and save encrypted file to a file with
-      // '.aes' extension added. In this case it will be './example/testfile.txt.aes'.
-      // It returns a path to encrypted file.
-      //encFilepath = crypt.encryptFileSync('./example/testfile.txt');
-      encFilepath = crypt.encryptFileSync(srcFilepath);
-      print('The encryption has been completed successfully.');
-      print('Encrypted file: $encFilepath');
-    } on AesCryptException catch (e) {
-      // It goes here if overwrite mode set as 'AesCryptFnMode.warn'
-      // and encrypted file already exists.
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The encryption has been completed unsuccessfully.');
-        print(e.message);
-      }
-      return '';
-    }
-    return encFilepath;
-  }
-
-  // just decryption, return decFilepath
-  String aesFileDecryptionOwnSync(String sourcePath, String destPath) {
-    String encFilepath;
-    String decFilepath = '';
-
-    // The file to be encrypted
-    //String srcFilepath = './example/testfile.txt';
-    encFilepath = sourcePath;
-    //decFilepath = dest;
-
-    print('Encrypted source file: $encFilepath');
-
-    // Creates an instance of AesCrypt class.
-    var crypt = AesCrypt();
-
-    // Sets encryption password.
-    // Optionally you can specify the password when creating an instance
-    // of AesCrypt class like:
-    // var crypt = AesCrypt('my cool password');
-    crypt.setPassword('my cool password');
-
-    // Sets overwrite mode.
-    // It's optional. By default the mode is 'AesCryptOwMode.warn'.
-    //crypt.setOverwriteMode(AesCryptOwMode.warn);
-    crypt.setOverwriteMode(AesCryptOwMode.on); // to overwrite a former one
-
-    try {
-      // Decrypts the file which has been just encrypted and tries to save it under
-      // another name than source file name.
-      //decFilepath = crypt.decryptFileSync(encFilepath, './example/testfile_new.txt');
-      decFilepath = crypt.decryptFileSync(encFilepath, destPath);
-      print('The decryption has been completed successfully.');
-      print('Decrypted file 2: $decFilepath');
-      //print('File content: ' + File(decFilepath).readAsStringSync());
-    } on AesCryptException catch (e) {
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The decryption has been completed unsuccessfully.');
-        print(e.message);
-        return '';
-      }
-    }
-    return decFilepath;
-  }
-
-
-  // this is the full example
-  void aesFileEncryption(String sourcePath, String destPath) {
-    String encFilepath;
-    String decFilepath;
-
-    // The file to be encrypted
-    //String srcFilepath = './example/testfile.txt';
-    String srcFilepath = sourcePath;
-    //decFilepath = dest;
-
-    print('Unencrypted source file: $srcFilepath');
-    //print('File content: ' + File(srcFilepath).readAsStringSync() + '\n');
-
-    // Creates an instance of AesCrypt class.
-    var crypt = AesCrypt();
-
-    // Sets encryption password.
-    // Optionally you can specify the password when creating an instance
-    // of AesCrypt class like:
-    // var crypt = AesCrypt('my cool password');
-    crypt.setPassword('my cool password');
-
-    // Sets overwrite mode.
-    // It's optional. By default the mode is 'AesCryptOwMode.warn'.
-    //crypt.setOverwriteMode(AesCryptOwMode.warn);
-    crypt.setOverwriteMode(AesCryptOwMode.on); // to overwrite a former one
-
-    try {
-      // Encrypts './example/testfile.txt' file and save encrypted file to a file with
-      // '.aes' extension added. In this case it will be './example/testfile.txt.aes'.
-      // It returns a path to encrypted file.
-      //encFilepath = crypt.encryptFileSync('./example/testfile.txt');
-      encFilepath = crypt.encryptFileSync(srcFilepath);
-      print('The encryption has been completed successfully.');
-      print('Encrypted file: $encFilepath');
-    } on AesCryptException catch (e) {
-      // It goes here if overwrite mode set as 'AesCryptFnMode.warn'
-      // and encrypted file already exists.
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The encryption has been completed unsuccessfully.');
-        print(e.message);
-      }
-      return;
-    }
-    print('');
-    try {
-      // Decrypts the file which has been just encrypted.
-      // It returns a path to decrypted file.
-      decFilepath = crypt.decryptFileSync(encFilepath);
-      print('The decryption has been completed successfully.');
-      print('Decrypted file 1: $decFilepath');
-      //print('File content: ' + File(decFilepath).readAsStringSync() + '\n');
-    } on AesCryptException catch (e) {
-      // It goes here if the file naming mode set as AesCryptFnMode.warn
-      // and decrypted file already exists.
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The decryption has been completed unsuccessfully.');
-        print(e.message);
-      }
-    }
-    print('');
-    try {
-      // Decrypts the file which has been just encrypted and tries to save it under
-      // another name than source file name.
-      //decFilepath = crypt.decryptFileSync(encFilepath, './example/testfile_new.txt');
-      decFilepath = crypt.decryptFileSync(encFilepath, destPath);
-      print('The decryption has been completed successfully.');
-      print('Decrypted file 2: $decFilepath');
-      //print('File content: ' + File(decFilepath).readAsStringSync());
-    } on AesCryptException catch (e) {
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The decryption has been completed unsuccessfully.');
-        print(e.message);
-      }
-    }
-    print('');
-    try {
-      // Decrypts the file to the same name as previous one but before sets
-      // another overwrite mode 'AesCryptFnMode.auto'. See what will happens.
-      crypt.setOverwriteMode(AesCryptOwMode.rename);
-      //decFilepath = crypt.decryptFileSync(encFilepath, './example/testfile_new.txt');
-      decFilepath = crypt.decryptFileSync(encFilepath, destPath);
-      print('The decryption has been completed successfully.');
-      print('Decrypted file 3: $decFilepath');
-      //print('File content: ' + File(decFilepath).readAsStringSync() + '\n');
-    } on AesCryptException catch (e) {
-      if (e.type == AesCryptExceptionType.destFileExists) {
-        print('The decryption has been completed unsuccessfully.');
-        print(e.message);
-      }
-    }
-    print('Done.');
-  }
 
   Uint8List aesCbcEncryptionToUint8List(
       Uint8List key, Uint8List iv, Uint8List plaintextUint8) {
@@ -780,4 +611,18 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     return bytes;
   }
+
+  Uint8List calculateSha256FromString(String data) {
+    var dataToDigest = createUint8ListFromString(data);
+    var d = pc.Digest('SHA-256');
+    return d.process(dataToDigest);
+  }
+
+  Uint8List calculateSha256FromUint8List(Uint8List dataToDigest) {
+    var d = pc.Digest('SHA-256');
+    return d.process(dataToDigest);
+  }
+
+
+
 }
