@@ -116,308 +116,89 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          //_incrementCounter
+
+          print('AES CBC large file encryption');
 
           Directory directory = await getApplicationDocumentsDirectory();
-          File file = File('${directory.path}/file1.txt');
+          final String sourceFilePath = '${directory.path}/source.txt';
+          final String cipherNewFilePath = '${directory.path}/cipher_new.txt';
+          final String cipherOldFilePath = '${directory.path}/cipher_old.txt';
+          final String decryptOldFilePath = '${directory.path}/decrypt_old.txt';
+          final String decryptNewFilePath = '${directory.path}/decrypt_new.txt';
 
-          print('1 generate data');
-          // here is the 1000 byte long random data
-          final step1 = Stopwatch()..start();
-          //Uint8List data1000 = generateRandom1000Byte();
-          Uint8List data1mb = generateRandomByte(1024 * 1024); // 1 mb
-          //Uint8List data1000 = generateRandomByte(1024);
-          var step1Elapsed = step1.elapsed;
-          //print('data1000 length: ' + data1000.length.toString());
-          print('data1mb length: ' + data1mb.length.toString());
-          //print('data:\n' + bytesToHex(data1000));
-          print('step 1 elapsed: ' + step1Elapsed.inMicroseconds.toString());
-
-          print('\n2 write data to file using file.io');
-          // write the file
-          final step2 = Stopwatch()..start();
-          await _writeUint8List(file, data1mb);
-          var step2Elapsed = step2.elapsed;
-          print('step 2 elapsed: ' + step2Elapsed.inMicroseconds.toString());
-
-          print('\n3 load data from file using file.io');
-          // read the file
-          final step3 = Stopwatch()..start();
-          var step3Elapsed;
-          try {
-            Uint8List bytesLoad;
-            //String myPath= 'MyPath/abc.png';
-            _readUint8List(file).then((bytesData) {
-              bytesLoad = bytesData;
-              //do your task here
-              step3Elapsed = step3.elapsed;
-              print('bytesLoad length: ' + bytesLoad.length.toString());
-              //print('data:\n' + bytesToHex(bytesLoad));
-              print(
-                  'step 3 elapsed: ' + step3Elapsed.inMicroseconds.toString());
-            });
-          } catch (e) {
-            // if path invalid or not able to read
-            print(e);
-          }
-
-          // encrypt the data in one round with aes cbc
-          print('\n4 encrypt the data with aes cbc in one round');
+          // fixed key and iv - this is just for testing purposes
           String keyString = '12345678123456781234567812345678'; // 32 chars
           String ivString = '7654321076543210'; // 16 chars
           Uint8List key = createUint8ListFromString(keyString);
           Uint8List iv = createUint8ListFromString(ivString);
-          final step4 = Stopwatch()..start();
-          Uint8List ct = aesCbcEncryptionToUint8List(key, iv, data1mb);
-          var step4Elapsed = step4.elapsed;
-          print('ct length: ' + ct.length.toString());
-          print('step 4 elapsed: ' + step4Elapsed.inMicroseconds.toString());
 
-          // decrypt the data
-          print('\n5 decrypt the data with aes cbc in one round');
-          final step5 = Stopwatch()..start();
-          Uint8List dt = aesCbcDecryptionToUint8List(key, iv, ct);
-          var step5Elapsed = step5.elapsed;
-          print('dt length: ' + dt.length.toString());
-          print('step 5 elapsed: ' + step5Elapsed.inMicroseconds.toString());
-
-          // load the data through RandomAccessFile
-          print('\n6 load the data using RandomAccessFile');
-          File fileRAF = File('${directory.path}/file1.txt');
-          final step6 = Stopwatch()..start();
-          RandomAccessFile raf = await fileRAF.open(mode: FileMode.read);
-          var fileRLength = await fileRAF.length();
-          print('fileR length: ' + fileRLength.toString());
-          await raf.setPosition(0); // from position 0
-          Uint8List bytesLoad =
-              await raf.read(fileRLength); // reading all bytes
-          var step6Elapsed = step6.elapsed;
-          print('bytesLoad length: ' + bytesLoad.length.toString());
-          print('step 6 elapsed: ' + step6Elapsed.inMicroseconds.toString());
-
-          // write the data through RandomAccessFile
-          print('\n7 write the data using RandomAccessFile');
-          File file2RAF = File('${directory.path}/file2.txt');
-          final step7 = Stopwatch()..start();
-          RandomAccessFile raf2 = await file2RAF.open(mode: FileMode.write);
-          //await raf2.writeFrom(data1mb);
-          await raf2.writeFrom(ct);
-          await raf2.flush();
-          await raf2.close();
-          var step7Elapsed = step7.elapsed;
-          print('step 7 elapsed: ' + step7Elapsed.inMicroseconds.toString());
-
-          // load file in chunks, encrypt, store to file
-          print('\n8 load file in chunks, encrypt, store to file using RandomAccessFile');
-          File fileRAFStep8R = File('${directory.path}/file1.txt');
-          File fileRAFStep8W = File('${directory.path}/file8e.txt');
-          final step8 = Stopwatch()..start();
-          RandomAccessFile rafStep8R = await fileRAFStep8R.open(mode: FileMode.read);
-          RandomAccessFile rafStep8W = await fileRAFStep8W.open(mode: FileMode.write);
-          var fileRStep8Length = await fileRAFStep8R.length();
-          print('fileRStep8 length: ' + fileRStep8Length.toString());
-          await rafStep8R.setPosition(0); // from position 0
-          // calculate rounds
-          int bufferStep8Length = 2048;
-          print('8 buffer size: ' + bufferStep8Length.toString());
-          int fullRoundsStep8 = fileRStep8Length ~/ bufferStep8Length;
-          print('8 fullRounds: ' + fullRoundsStep8.toString());
-          int remainderLastRoundStep8 = (fileRStep8Length % bufferStep8Length) as int;
-          print('8 remainderLastRoundStep8: ' + remainderLastRoundStep8.toString());
-          String keyS8String = '12345678123456781234567812345678'; // 32 chars
-          String ivS8String = '7654321076543210'; // 16 chars
-          Uint8List keyS8 = createUint8ListFromString(keyS8String);
-          Uint8List ivS8 = createUint8ListFromString(ivS8String);
-
-          // pointycastle setup
-          final pc.CBCBlockCipher cipher =
-          new pc.CBCBlockCipher(new pc.AESEngine());
-          pc.ParametersWithIV<pc.KeyParameter> cbcParams =
-          new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(keyS8), ivS8);
-          pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
-          paddingParams = new pc.PaddedBlockCipherParameters<
-              pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
-          pc.PaddedBlockCipherImpl paddingCipher =
-          new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
-          paddingCipher.init(true, paddingParams);
-
-          // now lets read in chunks
-          for (int rounds = 0; rounds < fullRoundsStep8; rounds++) {
-            Uint8List bytesLoadStep8 = await rafStep8R.read(bufferStep8Length);
-            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 Length: ' + bytesLoadStep8.length.toString());
-            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 hex: ' + bytesToHex(bytesLoadStep8));
-            Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8);
-            await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
-          }
-
-          /* funktioniert nicht bei -1
-          // last one
-          print('8 remainderLastRoundStep8 Length: ' + remainderLastRoundStep8.toString());
-          Uint8List bytesLoadStep8 = await rafStep8R.read(remainderLastRoundStep8);
-          Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8);
-          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
-
-          Uint8List step8Final = Uint8List(16);
-          step8Final = paddingCipher.process(Uint8List(0));
-          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
-
-           */
-
-          /* funktioniert */
-          // die ersten runden waren mit einem buffer von 2048 byte
-          // die letzte runde wird in 16er blöcke geteilt
-
-          int lastRoundsStep8 = remainderLastRoundStep8 ~/ 16;
-          for (int rounds = 0; rounds < lastRoundsStep8; rounds++) {
-            Uint8List bytesLoadStep8 = await rafStep8R.read(16);
-            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 Length: ' + bytesLoadStep8.length.toString());
-            //print('8 round: ' + rounds.toString() + ' bytesLoadStep8 hex: ' + bytesToHex(bytesLoadStep8));
-            Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8);
-            await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
-          }
-          // now its time for the final step
-          int bytesToLoadFinal = remainderLastRoundStep8 - (lastRoundsStep8 * 16);
-          print('8 bytesToLoadFinal: ' + bytesToLoadFinal.toString());
-          Uint8List bytesLoadStep8Final = await rafStep8R.read(bytesToLoadFinal);
-          //Uint8List bytesLoadStep8Final = await rafStep8R.read(remainderLastRoundStep8);
-          Uint8List bytesLoadStep8Encrypted = _processBlocks(paddingCipher, bytesLoadStep8Final);
-          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
-          Uint8List step8Final = Uint8List(16);
-          int step8FinalLength = paddingCipher.doFinal(Uint8List(0), 0, step8Final, 0);
-          await rafStep8W.writeFrom(step8Final);
-          /* */
-
-                     /*
-          Uint8List bytesLoadStep8Encrypted = new Uint8List(16);
-          int n = paddingCipher.doFinal(bytesLoadStep8Final, 0 ,bytesLoadStep8Encrypted, 0);
-          await rafStep8W.writeFrom(bytesLoadStep8Encrypted);
-           */
-
+          // generate a 'large' file with random content
+          final int testDataLength = (1024 * 1024); // 1 mb
+          final step1 = Stopwatch()..start();
+          Uint8List randomData = _generateRandomByte(testDataLength);
+          _generateLargeFileSync(sourceFilePath, randomData, 50);
           /*
-          // run the final encryption
-          Uint8List bytesLoadStep8Last = await rafStep8R.read(bufferStep8Length);
-          int bytesLoadStep8LastLength = bytesLoadStep8Last.length;
-          Uint8List lastRoundEncrypt = new Uint8List(16);
-          //Uint8List lastRoundEncrypt = new Uint8List(bufferStep8Length);
-          print('8 encryption parameters doFinal');
-          print('8 bytesLoadStep8Last: ' + bytesToHex(bytesLoadStep8Last));
-          print('8 bytesLoadStep8LastLength: ' + bytesLoadStep8LastLength.toString());
-          //int lastRoundEncryptLength = paddingCipher.doFinal(bytesLoadStep8Last, 0, lastRoundEncrypt, 0);
-          int lastRoundEncryptLength = paddingCipher.doFinal(bytesLoadStep8Last, 0, lastRoundEncrypt, 0);
-          print('8 lastRoundEncryptLength: ' + lastRoundEncryptLength.toString());
-          //Uint8List lastRoundEncrypt = paddingCipher.process(bytesLoadStep8Last);
-          //print('8 lastRoundDecryptLength: ' + lastRoundEncryptLength.toString());
-          await rafStep8W.writeFrom(lastRoundEncrypt);
-          */
-          await rafStep8W.flush();
-          await rafStep8W.close();
-          await rafStep8R.close();
+          Uint8List randomData = _generateRandomByte(testDataLength);
+          //Uint8List randomData = _generateRandomByte((5));
+          // write data to file
+          _writeUint8ListSync(sourceFilePath, randomData);
+           */
+          var step1Elapsed = step1.elapsed;
 
-          var step8Elapsed = step8.elapsed;
-          print('step 8 elapsed: ' + step8Elapsed.inMicroseconds.toString());
+          print('\ndata for reference');
+          // for reference
+          // get sha-256 of file
+          Uint8List sourceSha256 = await _getSha256File(sourceFilePath);
+          int sourceFileLength = await _getFileLength(sourceFilePath);
+          print('sourcePath fileLength: ' + sourceFileLength.toString());
+          print('sourcePath SHA-256:     ' + bytesToHex(sourceSha256));
+          // encrypt in one run
+          final step2 = Stopwatch()..start();
+          Uint8List plaintextLoad = _readUint8ListSync(sourceFilePath);
+          Uint8List ciphertextOld = encrypt(plaintextLoad, key, iv);
+          _writeUint8ListSync(cipherOldFilePath, ciphertextOld);
+          var step2Elapsed = step2.elapsed;
+          Uint8List cipherOldSha256 = await _getSha256File(cipherOldFilePath);
+          int cipherOldFileLength = await _getFileLength(cipherOldFilePath);
+          print('cipherOldPath fileLength: ' + cipherOldFileLength.toString());
+          print('cipherOldPath SHA-256:  ' + bytesToHex(cipherOldSha256));
+          // decrypt in one run
+          final step3 = Stopwatch()..start();
+          Uint8List ciphertextOldLoad = await _readUint8ListSync(cipherOldFilePath);
+          Uint8List decrypttextOld = decrypt(ciphertextOldLoad, key, iv);
+          _writeUint8ListSync(decryptOldFilePath, decrypttextOld);
+          var step3Elapsed = step3.elapsed;
+          Uint8List decryptOldSha256 = await _getSha256File(decryptOldFilePath);
+          int decryptOldFileLength = await _getFileLength(decryptOldFilePath);
+          print('decryptOldPath fileLength: ' + decryptOldFileLength.toString());
+          print('decryptOldPath SHA-256: ' + bytesToHex(decryptOldSha256));
 
-          print('\n9 load file in chunks, decrypt, store to file using RandomAccessFile');
-          File fileRAFStep9R = File('${directory.path}/file8e.txt');
-          File fileRAFStep9W = File('${directory.path}/file8d.txt');
-          final step9 = Stopwatch()..start();
-          RandomAccessFile rafStep9R = await fileRAFStep9R.open(mode: FileMode.read);
-          RandomAccessFile rafStep9W = await fileRAFStep9W.open(mode: FileMode.write);
-          var fileRStep9Length = await fileRAFStep9R.length();
-          print('fileRStep9 length: ' + fileRStep9Length.toString());
-          await rafStep9R.setPosition(0); // from position 0
-          // calculate rounds
-          int bufferStep9Length = 2048;
-          print('9 buffer size: ' + bufferStep9Length.toString());
-          int fullRoundsStep9 = fileRStep9Length ~/ bufferStep9Length;
-          print('9 fullRounds: ' + fullRoundsStep9.toString());
-          int remainderLastRoundStep9 = (fileRStep9Length % bufferStep9Length) as int;
-          print('9 remainderLastRoundStep9: ' + remainderLastRoundStep9.toString());
-          String keyS9String = '12345678123456781234567812345678'; // 32 chars
-          String ivS9String = '7654321076543210'; // 16 chars
-          Uint8List keyS9 = createUint8ListFromString(keyS9String);
-          Uint8List ivS9 = createUint8ListFromString(ivS9String);
+          // delete new file if exist
+          //_deleteFileSync(cipherNewFilePath);
+          //print('\nfile ' + cipherNewFilePath + ' deleted if existed');
 
-          // pointycastle setup
-          final pc.CBCBlockCipher cipher9 =
-          new pc.CBCBlockCipher(new pc.AESEngine());
-          pc.ParametersWithIV<pc.KeyParameter> cbcParams9 =
-          new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(keyS9), ivS9);
-          pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
-          paddingParams9 = new pc.PaddedBlockCipherParameters<
-              pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
-          pc.PaddedBlockCipherImpl paddingCipher9 =
-          new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher9);
-          paddingCipher9.init(false, paddingParams9);
+          print('\ndata encryption using RAF and chunks');
+          // now encryption using chunks
+          final step4 = Stopwatch()..start();
+          await _encryptAesCbc(sourceFilePath, cipherNewFilePath, key, iv);
+          var step4Elapsed = step4.elapsed;
+          // check the data
+          Uint8List cipherNewSha256 = await _getSha256File(cipherNewFilePath);
+          int cipherNewFileLength = await _getFileLength(cipherNewFilePath);
+          print('cipherNewPath fileLength: ' + cipherNewFileLength.toString());
+          print('cipherNewPath SHA-256:  ' + bytesToHex(cipherNewSha256));
 
-          // now lets read in chunks
-          for (int rounds = 0; rounds < fullRoundsStep9; rounds++) {
-            Uint8List bytesLoadStep9 = await rafStep9R.read(bufferStep9Length);
-            Uint8List bytesLoadStep9Decrypted = _processBlocks(paddingCipher9, bytesLoadStep9);
-            await rafStep9W.writeFrom(bytesLoadStep9Decrypted);
-          }
+          // now decryption using chunks
+          print('\ndata decryption using RAF and chunks');
+          final step5 = Stopwatch()..start();
+          await _decryptAesCbc(cipherNewFilePath, decryptNewFilePath, key, iv);
+          var step5Elapsed = step5.elapsed;
+          // check the data
+          Uint8List decryptNewSha256 = await _getSha256File(decryptNewFilePath);
+          int decryptNewFileLength = await _getFileLength(decryptNewFilePath);
+          print('decryptNewPath fileLength: ' + decryptNewFileLength.toString());
+          print('decryptNewPath SHA-256:  ' + bytesToHex(decryptNewSha256));
 
-          // run the final decryption
-          Uint8List bytesLoadStep9Last = await rafStep9R.read(bufferStep9Length);
-          int bytesLoadStep9LastLength = bytesLoadStep9Last.length;
-          print('9 bytesLoadStep9LastLength: ' + bytesLoadStep9LastLength.toString());
-          //Uint8List lastRoundDecrypt = new Uint8List(bufferStep9Length);
-          Uint8List lastRoundDecrypt = new Uint8List(remainderLastRoundStep9);
-          int lastRoundDecryptLength = paddingCipher9.doFinal(bytesLoadStep9Last, 0, lastRoundDecrypt, 0);
-          print('9 lastRoundDecryptLength: ' + lastRoundDecryptLength.toString());
-          // write only the real decrypted data
-          Uint8List lastRoundDecryptReal = Uint8List.sublistView(lastRoundDecrypt, 0, lastRoundDecryptLength);
-          print('9 lastRoundDecryptRealLength: ' + lastRoundDecryptReal.length.toString());
-          await rafStep9W.writeFrom(lastRoundDecryptReal);
-          await rafStep9W.flush();
-          await rafStep9W.close();
-          await rafStep9R.close();
-
-          var step9Elapsed = step9.elapsed;
-          print('step 9 elapsed: ' + step9Elapsed.inMicroseconds.toString());
-
-          // just checking file length
-          File fileRAF8eLength = File('${directory.path}/file8e.txt');
-          RandomAccessFile rafLength = await fileRAF8eLength.open(mode: FileMode.read);
-          var fileRaf8eLength = await rafLength.length();
-          print('8 fileRaf8e length: ' + fileRaf8eLength.toString());
-
-          File fileRAF8dLength = File('${directory.path}/file8d.txt');
-          RandomAccessFile raf8dLength = await fileRAF8dLength.open(mode: FileMode.read);
-          var fileRaf8dLength = await raf8dLength.length();
-          print('9 fileRaf8d length: ' + fileRaf8dLength.toString());
-
-          // checking sha-256
-          File file8Sha256 = File('${directory.path}/file1.txt');
-          RandomAccessFile rafSha256 = await file8Sha256.open(mode: FileMode.read);
-          await rafSha256.setPosition(0); // from position 0
-          Uint8List bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
-          rafSha256.close();
-          Uint8List file1Sha256 = calculateSha256FromUint8List(bytesLoadSha256);
-          print('8 file1Sha256:    ' + bytesToHex(file1Sha256));
-
-          file8Sha256 = File('${directory.path}/file8e.txt');
-          rafSha256 = await file8Sha256.open(mode: FileMode.read);
-          await rafSha256.setPosition(0); // from position 0
-          bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
-          rafSha256.close();
-          Uint8List file8eSha256 = calculateSha256FromUint8List(bytesLoadSha256);
-          print('8 file8eSha256:   ' + bytesToHex(file8eSha256));
-
-          file8Sha256 = File('${directory.path}/file8d.txt');
-          rafSha256 = await file8Sha256.open(mode: FileMode.read);
-          await rafSha256.setPosition(0); // from position 0
-          bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
-          rafSha256.close();
-          Uint8List file8dSha256 = calculateSha256FromUint8List(bytesLoadSha256);
-          print('9 file8dSha256:   ' + bytesToHex(file8dSha256));
-
-          file8Sha256 = File('${directory.path}/file2.txt');
-          rafSha256 = await file8Sha256.open(mode: FileMode.read);
-          await rafSha256.setPosition(0); // from position 0
-          bytesLoadSha256 = await rafSha256.read(fileRLength); // reading all bytes
-          rafSha256.close();
-          Uint8List file2Sha256 = calculateSha256FromUint8List(bytesLoadSha256);
-          print('9 file2Sha256:    ' + bytesToHex(file2Sha256));
 
 
 
@@ -425,19 +206,19 @@ class _MyHomePageState extends State<MyHomePage> {
           // print out all again
           print('');
           print('*********** benchmark all steps ************');
-          print('step 1 generate data elapsed: ' +
+
+          print('step 1 generate data:       ' +
               step1Elapsed.inMicroseconds.toString());
-          print('step 1 data size generated:   ' +
-              data1mb.length.toString() +
-              ' bytes');
-          print('step 2 write data file.io elapsed: ' +
+          print('testDataLength:             ' + testDataLength.toString() + ' bytes');
+          print('step 2 encrypt in memory:   ' +
               step2Elapsed.inMicroseconds.toString());
-          print('step 3 load data file.io elapsed: ' +
+          print('step 3 decrypt in memory:   ' +
               step3Elapsed.inMicroseconds.toString());
-          print('step 4 encrypt all elapsed: ' +
+          print('step 4 encrypt raf/chunked: ' +
               step4Elapsed.inMicroseconds.toString());
-          print('step 5 decrypt all elapsed: ' +
+          print('step 5 decrypt raf/chunked: ' +
               step5Elapsed.inMicroseconds.toString());
+          /*
           print('step 6 load data RAF elapsed: ' +
               step6Elapsed.inMicroseconds.toString());
           print('step 7 write data RAF elapsed: ' +
@@ -447,17 +228,6 @@ class _MyHomePageState extends State<MyHomePage> {
               step8Elapsed.inMicroseconds.toString());
           print('step 9 read data in chunks, decrypt, write using RAF elapsed: ' +
               step9Elapsed.inMicroseconds.toString());
-
-/*
-          print('step 11 file encryption aes_crypt elapsed SYNC: ' +
-              step11Elapsed.inMicroseconds.toString());
-          print('step 12 file decryption aes_crypt elapsed SYNC: ' +
-              step12Elapsed.inMicroseconds.toString());
-
-          print('step 13 file encryption aes_crypt elapsed ASYNC: ' +
-              step13Elapsed.inMicroseconds.toString());
-          print('step 14 file decryption aes_crypt elapsed ASYNC: ' +
-              step14Elapsed.inMicroseconds.toString());
 */
           print('*********** benchmark all steps finished ************');
         },
@@ -467,6 +237,98 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+// using random access file
+  _encryptAesCbc(String sourceFilePath, String destinationFilePath, Uint8List key, Uint8List iv) async {
+    final int bufferLength = 2048;
+    File fileSourceRaf = File(sourceFilePath);
+    File fileDestRaf = File(destinationFilePath);
+    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
+    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
+    var fileRLength = await rafR.length();
+    print('bufferLength: ' + bufferLength.toString() + ' fileRLength: ' + fileRLength.toString());
+    await rafR.setPosition(0); // from position 0
+    int fullRounds = fileRLength ~/ bufferLength;
+    int remainderLastRound = (fileRLength % bufferLength) as int;
+    print('fullRounds: ' + fullRounds.toString() + ' remainderLastRound: ' + remainderLastRound.toString());
+    // pointycastle cipher setup
+    final pc.CBCBlockCipher cipher = new pc.CBCBlockCipher(new pc.AESEngine());
+    pc.ParametersWithIV<pc.KeyParameter> cbcParams = new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(key), iv);
+    pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
+    paddingParams = new pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
+    pc.PaddedBlockCipherImpl paddingCipher = new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
+    paddingCipher.init(true, paddingParams); // true = encryption
+    // now we are running the full rounds
+    for (int rounds = 0; rounds < fullRounds; rounds++) {
+      Uint8List bytesLoad = await rafR.read(bufferLength);
+      Uint8List bytesLoadEncrypted = _processBlocks(paddingCipher, bytesLoad);
+      await rafW.writeFrom(bytesLoadEncrypted);
+    }
+    // last round
+    if (remainderLastRound > 0) {
+      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      Uint8List bytesLoadEncrypted = paddingCipher.process(bytesLoadLast);
+      await rafW.writeFrom(bytesLoadEncrypted);
+    } else {
+      Uint8List bytesLoadEncrypted = new Uint8List(16); // append one block with padding
+      int lastRoundEncryptLength = paddingCipher.doFinal(Uint8List(0), 0, bytesLoadEncrypted, 0);
+      await rafW.writeFrom(bytesLoadEncrypted);
+    }
+    // close all files
+    await rafW.flush();
+    await rafW.close();
+    await rafR.close();
+  }
+
+// using random access file
+  _decryptAesCbc(String sourceFilePath, String destinationFilePath, Uint8List key, Uint8List iv) async {
+    final int bufferLength = 2048;
+    File fileSourceRaf = File(sourceFilePath);
+    File fileDestRaf = File(destinationFilePath);
+    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
+    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
+    var fileRLength = await rafR.length();
+    print('bufferLength: ' + bufferLength.toString() + ' fileRLength: ' + fileRLength.toString());
+    await rafR.setPosition(0); // from position 0
+    int fullRounds = fileRLength ~/ bufferLength;
+    int remainderLastRound = (fileRLength % bufferLength) as int;
+    //int fullRounds = (fileRLength - 16) ~/ bufferLength;
+    //int remainderLastRound = ((fileRLength - 16) % bufferLength) as int;
+    print('fullRounds: ' + fullRounds.toString() + ' remainderLastRound: ' + remainderLastRound.toString());
+    // pointycastle cipher setup
+    final pc.CBCBlockCipher cipher = new pc.CBCBlockCipher(new pc.AESEngine());
+    pc.ParametersWithIV<pc.KeyParameter> cbcParams = new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(key), iv);
+    pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
+    paddingParams = new pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
+    pc.PaddedBlockCipherImpl paddingCipher = new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
+    paddingCipher.init(false, paddingParams); // false = decryption
+    // now we are running the full rounds
+    // correct number of full rounds if remaininderLastRound == 0
+    if (remainderLastRound == 0) {
+      fullRounds = fullRounds - 1;
+      remainderLastRound = bufferLength;
+    }
+    for (int rounds = 0; rounds < fullRounds; rounds++) {
+      Uint8List bytesLoad = await rafR.read(bufferLength);
+      Uint8List bytesLoadDecrypted = _processBlocks(paddingCipher, bytesLoad);
+      //print('round ' + rounds.toString() + ' bytesLoadDecrypted Length: ' + bytesLoadDecrypted.length.toString());
+      await rafW.writeFrom(bytesLoadDecrypted);
+    }
+    // last round
+    if (remainderLastRound > 0) {
+      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      Uint8List bytesLoadDecrypted = paddingCipher.process(bytesLoadLast);
+      await rafW.writeFrom(bytesLoadDecrypted);
+    } else {
+      /*
+      do nothing
+    */
+    }
+
+    // close all files
+    await rafW.flush();
+    await rafW.close();
+    await rafR.close();
+  }
 
   Uint8List _processBlocks(pc.BlockCipher cipher, Uint8List inp) {
     var out = new Uint8List(inp.lengthInBytes);
@@ -477,94 +339,45 @@ class _MyHomePageState extends State<MyHomePage> {
     return out;
   }
 
-
-  Uint8List aesCbcEncryptionToUint8List(
-      Uint8List key, Uint8List iv, Uint8List plaintextUint8) {
-    final pc.CBCBlockCipher cipher =
-        new pc.CBCBlockCipher(new pc.AESFastEngine());
-    pc.ParametersWithIV<pc.KeyParameter> cbcParams =
-        new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(key), iv);
-    pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
-        paddingParams = new pc.PaddedBlockCipherParameters<
-            pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
-    pc.PaddedBlockCipherImpl paddingCipher =
-        new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
-    paddingCipher.init(true, paddingParams);
-    final ciphertext = paddingCipher.process(plaintextUint8);
-    return ciphertext;
-  }
-
-  Uint8List aesCbcDecryptionToUint8List(
-      Uint8List key, Uint8List iv, Uint8List ciphertextUint8) {
-    final pc.CBCBlockCipher cipher =
-        new pc.CBCBlockCipher(new pc.AESFastEngine());
-    pc.ParametersWithIV<pc.KeyParameter> cbcParams =
-        new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(key), iv);
-    pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>
-        paddingParams = new pc.PaddedBlockCipherParameters<
-            pc.ParametersWithIV<pc.KeyParameter>, Null>(cbcParams, null);
-    pc.PaddedBlockCipherImpl paddingCipher =
-        new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
-    paddingCipher.init(false, paddingParams);
-    final plaintext = paddingCipher.process(ciphertextUint8);
-    return plaintext;
-  }
-
-  Uint8List aesEcbEncryptionNoPaddingToUint8List(
-      Uint8List key, Uint8List plaintextUint8) {
-    // no padding
-    pc.BlockCipher cipher = pc.ECBBlockCipher(pc.AESFastEngine());
-    cipher.init(
-      true,
-      pc.KeyParameter(key),
-    );
-    Uint8List cipherText = cipher.process(plaintextUint8);
-    return cipherText;
-  }
-
-  Uint8List aesEcbDecryptionNoPaddingToUint8List(
-      Uint8List key, Uint8List ciphertextUint8) {
-    // no padding
-    pc.BlockCipher cipher = pc.ECBBlockCipher(pc.AESFastEngine());
-    cipher.init(
-      false,
-      pc.KeyParameter(key),
-    );
-    Uint8List plainText = cipher.process(ciphertextUint8);
-    return plainText;
-  }
-
-  Uint8List generateRandom1000Byte() {
+  Uint8List _generateRandomByte(int length) {
     final _sGen = Random.secure();
     final _seed =
-        Uint8List.fromList(List.generate(32, (n) => _sGen.nextInt(255)));
-    pc.SecureRandom sec = pc.SecureRandom("Fortuna")
-      ..seed(pc.KeyParameter(_seed));
-    return sec.nextBytes(1000);
-  }
-
-  Uint8List generateRandom100000Byte() {
-    final _sGen = Random.secure();
-    final _seed =
-        Uint8List.fromList(List.generate(32, (n) => _sGen.nextInt(255)));
-    pc.SecureRandom sec = pc.SecureRandom("Fortuna")
-      ..seed(pc.KeyParameter(_seed));
-    return sec.nextBytes(100000);
-  }
-
-  Uint8List generateRandomByte(int length) {
-    // maximum 1 mb of data
-    // Unhandled Exception: Invalid argument(s): Fortuna PRNG cannot generate more than 1MB of random data per invocation
-    final _sGen = Random.secure();
-    final _seed =
-        Uint8List.fromList(List.generate(32, (n) => _sGen.nextInt(255)));
+    Uint8List.fromList(List.generate(32, (n) => _sGen.nextInt(255)));
     pc.SecureRandom sec = pc.SecureRandom("Fortuna")
       ..seed(pc.KeyParameter(_seed));
     return sec.nextBytes(length);
   }
 
+  Future<int> _getFileLength(String path) async {
+    File file = File(path);
+    RandomAccessFile raf = await file.open(mode: FileMode.read);
+    int fileLength = await raf.length();
+    raf.close();
+    return fileLength;
+  }
+
+  Future<Uint8List> _getSha256File(String path) async {
+    File file = File(path);
+    RandomAccessFile raf = await file.open(mode: FileMode.read);
+    int fileLength = await raf.length();
+    await raf.setPosition(0); // from position 0
+    Uint8List fileConent = await raf.read(fileLength); // reading all bytes
+    raf.close();
+    return await calculateSha256FromUint8List(fileConent);
+  }
+
+  Future<Uint8List> calculateSha256FromUint8List(Uint8List dataToDigest) async {
+    var d = pc.Digest('SHA-256');
+    return await d.process(dataToDigest);
+  }
+
   String bytesToHex(Uint8List data) {
     return hex.encode(data);
+  }
+
+  _deleteFileSync(String path) {
+    File file = File(path);
+    file.deleteSync();
   }
 
   Uint8List createUint8ListFromString(String s) {
@@ -575,54 +388,85 @@ class _MyHomePageState extends State<MyHomePage> {
     return ret;
   }
 
-  // Writing to a text file
-  _writeText(File file, String text) async {
-    //final Directory directory = await getApplicationDocumentsDirectory();
-    //final File file = File('${directory.path}/my_file.txt');
-    await file.writeAsString(text);
+  Uint8List encrypt(Uint8List plaintext, Uint8List key, Uint8List iv) {
+    pc.CBCBlockCipher cipher = new pc.CBCBlockCipher(new pc.AESEngine());
+    pc.ParametersWithIV<pc.KeyParameter> params = new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(key), iv);
+    pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null> paddingParams = new pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>(params, null);
+    pc.PaddedBlockCipherImpl paddingCipher = new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
+    paddingCipher.init(true, paddingParams);
+    return paddingCipher.process(plaintext);
   }
 
-  _writeUint8List(File file, Uint8List data) async {
+  Uint8List decrypt(Uint8List ciphertext, Uint8List key, Uint8List iv) {
+    pc.CBCBlockCipher cipher = new pc.CBCBlockCipher(new pc.AESEngine());
+    pc.ParametersWithIV<pc.KeyParameter> params = new pc.ParametersWithIV<pc.KeyParameter>(new pc.KeyParameter(key), iv);
+    pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null> paddingParams = new pc.PaddedBlockCipherParameters<pc.ParametersWithIV<pc.KeyParameter>, Null>(params, null);
+    pc.PaddedBlockCipherImpl paddingCipher = new pc.PaddedBlockCipherImpl(new pc.PKCS7Padding(), cipher);
+    paddingCipher.init(false, paddingParams);
+    return paddingCipher.process(ciphertext);
+  }
+
+// reading from a file
+  Uint8List _readUint8ListSync(String path )  {
+    File file = File(path);
+    return file.readAsBytesSync();
+  }
+
+// writing to a file
+  _writeUint8ListSync(String path, Uint8List data) {
+    File file = File(path);
+    file.writeAsBytesSync(data);
+  }
+
+// writing to a file
+  _writeUint8List(String path, Uint8List data) async {
+    File file = File(path);
     await file.writeAsBytes(data);
   }
 
-  // Reading from a text file
-  Future<String> _readText(File file) async {
-    String text = '';
-    try {
-      //final Directory directory = await getApplicationDocumentsDirectory();
-      //final File file = File('${directory.path}/my_file.txt');
-      text = await file.readAsString();
-    } catch (e) {
-      print("Couldn't read file");
+  // generate a large testfile with random data
+  _generateLargeFileSync(String path, Uint8List data, int numberWrite) {
+    File file = File(path);
+    for (int i = 0; i < numberWrite; i++) {
+      file.writeAsBytesSync(data, mode: FileMode.writeOnlyAppend);
     }
-    return text;
   }
-
-  // Reading from a text file
-  Future<Uint8List> _readUint8List(File file) async {
-    Uint8List bytes = new Uint8List(0);
-    await file.readAsBytes().then((value) {
-      bytes = Uint8List.fromList(value);
-      print('reading of bytes is completed');
-    }).catchError((onError) {
-      print('Exception Error while reading audio from path:' +
-          onError.toString());
-    });
-    return bytes;
-  }
-
-  Uint8List calculateSha256FromString(String data) {
-    var dataToDigest = createUint8ListFromString(data);
-    var d = pc.Digest('SHA-256');
-    return d.process(dataToDigest);
-  }
-
-  Uint8List calculateSha256FromUint8List(Uint8List dataToDigest) {
-    var d = pc.Digest('SHA-256');
-    return d.process(dataToDigest);
-  }
-
-
-
 }
+
+/* android:
+I/flutter ( 9757): step 1 generate data:       9242
+I/flutter ( 9757): testDataLength:             6144 bytes
+I/flutter ( 9757): step 2 encrypt in memory:   4801
+I/flutter ( 9757): step 3 decrypt in memory:   6460
+I/flutter ( 9757): step 4 encrypt raf/chunked: 11621
+I/flutter ( 9757): step 5 decrypt raf/chunked: 12489
+
+I/flutter ( 9757): step 1 generate data:       294846
+I/flutter ( 9757): testDataLength:             1048576 bytes
+I/flutter ( 9757): step 2 encrypt in memory:   261027
+I/flutter ( 9757): step 3 decrypt in memory:   273930
+I/flutter ( 9757): step 4 encrypt raf/chunked: 410935
+I/flutter ( 9757): step 5 decrypt raf/chunked: 411664
+
+I/flutter ( 4964): step 1 generate data:       308176
+I/flutter ( 4964): testDataLength:             1048576 bytes * 50  = 50 mb
+I/flutter ( 4964): step 2 encrypt in memory:   12044373
+I/flutter ( 4964): step 3 decrypt in memory:   12264161
+I/flutter ( 4964): step 4 encrypt raf/chunked: 18006684
+I/flutter ( 4964): step 5 decrypt raf/chunked: 17755318
+
+iOS
+flutter: step 1 generate data:       268435
+flutter: testDataLength:             1048576 bytes
+flutter: step 2 encrypt in memory:   255502
+flutter: step 3 decrypt in memory:   255485
+flutter: step 4 encrypt raf/chunked: 296151
+flutter: step 5 decrypt raf/chunked: 288059
+
+flutter: step 1 generate data:       278231
+flutter: testDataLength:             1048576 bytes * 50 = 50 mb
+flutter: step 2 encrypt in memory:   12222507
+flutter: step 3 decrypt in memory:   12468845
+flutter: step 4 encrypt raf/chunked: 13956907
+flutter: step 5 decrypt raf/chunked: 13823063
+ */
