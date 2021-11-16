@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'fc_file_encryption7_pc'),
+      home: const MyHomePage(title: 'fc_file_encryption8_pc'),
     );
   }
 }
@@ -121,8 +121,8 @@ class _MyHomePageState extends State<MyHomePage> {
           // AES GCM
           //await _runAesGcmEncryption();
 
-          // Chacha20Poly1305
-          await _runChacha20Poly1305Encryption();
+          // Chacha20
+          await _runChacha20Encryption();
         },
         tooltip: 'Increment',
         child: const Icon(Icons.add),
@@ -131,8 +131,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
 
-  _runChacha20Poly1305Encryption() async {
-    print('Chacha20 Poly1305 large file encryption');
+  _runChacha20Encryption() async {
+    print('Chacha20 large file encryption');
 
     Directory directory = await getApplicationDocumentsDirectory();
     final String sourceFilePath = '${directory.path}/source_c.txt';
@@ -169,7 +169,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
 
     // fixed key and iv - this is just for testing purposes
     String keyString = '12345678123456781234567812345678'; // 32 chars
-    String nonceString = '765432107654'; // 12 chars
+    String nonceString = '76543210'; // 8 chars
     Uint8List key = createUint8ListFromString(keyString);
     Uint8List nonce = createUint8ListFromString(nonceString);
     if (_fileExistsSync(sourceFilePath)) {
@@ -185,12 +185,12 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
 */
 
     // generate a 'large' file with random content
-    final int testDataLength = (1024 * 1024); // 1 mb
-    //final int testDataLength = (1024 * 7 + 0);
+    //final int testDataLength = (1024 * 1024); // 1 mb
+    final int testDataLength = (1024 * 7 + 0);
     final step1 = Stopwatch()..start();
     Uint8List randomData = _generateRandomByte(testDataLength);
-    //_generateLargeFileSync(sourceFilePath, randomData, 1);
-    _generateLargeFileSync(sourceFilePath, randomData, 50);
+    _generateLargeFileSync(sourceFilePath, randomData, 1);
+    //_generateLargeFileSync(sourceFilePath, randomData, 50);
 
 
     /*
@@ -215,7 +215,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     //Uint8List ciphertextOld = Uint8List(1);
     /* out of memory 50 mb */
     Uint8List ciphertextOld =
-        _encryptChacha20Poly1305Memory(plaintextLoad, key, nonce);
+        _encryptChacha20Memory(plaintextLoad, key, nonce);
 
 
 
@@ -238,7 +238,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     //Uint8List decrypttextOld = Uint8List(1);
     /* out of memory error 50 mb*/
     Uint8List decrypttextOld =
-        _decryptChacha20Poly1305Memory(ciphertextOldLoad, key, nonce);
+        _decryptChacha20Memory(ciphertextOldLoad, key, nonce);
     _writeUint8ListSync(decryptOldFilePath, decrypttextOld);
     var step3Elapsed = step3.elapsed;
     Uint8List decryptOldSha256 = await _getSha256File(decryptOldFilePath);
@@ -253,7 +253,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     print('\ndata encryption using RAF and chunks');
     // now encryption using chunks
     final step4 = Stopwatch()..start();
-    await _encryptChacha20Poly1305(
+    await _encryptChacha20(
         sourceFilePath, cipherNewFilePath, key, nonce);
     var step4Elapsed = step4.elapsed;
     // check the data
@@ -266,7 +266,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     // now decryption using chunks
     print('\ndata decryption using RAF and chunks');
     final step5 = Stopwatch()..start();
-    await _decryptChacha20Poly1305(
+    await _decryptChacha20(
         cipherNewFilePath, decryptNewFilePath, key, nonce);
     var step5Elapsed = step5.elapsed;
     // check the data
@@ -281,7 +281,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
         '\ndata encryption using RAF and chunks with random iv stored in file');
     // now encryption using chunks
     final step6 = Stopwatch()..start();
-    await _encryptChacha20Poly1305RandomNonce(sourceFilePath, cipherIvFilePath, key);
+    await _encryptChacha20RandomNonce(sourceFilePath, cipherIvFilePath, key);
     var step6Elapsed = step6.elapsed;
     // check the data
     Uint8List cipherIvSha256 = await _getSha256File(cipherIvFilePath);
@@ -293,7 +293,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     print(
         '\ndata decryption using RAF and chunks with random iv stored in file');
     final step7 = Stopwatch()..start();
-    await _decryptChacha20Poly1305RandomNonce(cipherIvFilePath, decryptIvFilePath, key);
+    await _decryptChacha20RandomNonce(cipherIvFilePath, decryptIvFilePath, key);
     var step7Elapsed = step7.elapsed;
     // check the data
     Uint8List decryptIvSha256 = await _getSha256File(decryptIvFilePath);
@@ -306,7 +306,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     // now encryption using chunks
     String password = 'secret password';
     final step8 = Stopwatch()..start();
-    await _encryptChacha20Poly1305RandomNoncePbkdf2(
+    await _encryptChacha20RandomNoncePbkdf2(
         sourceFilePath, cipherIvPbkdf2FilePath, password);
     var step8Elapsed = step8.elapsed;
     // check the data
@@ -321,7 +321,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     print(
         '\ndata decryption using RAF and chunks with random iv stored in file and PBKDF2 key derivation');
     final step9 = Stopwatch()..start();
-    await _decryptChacha20Poly1305RandomNoncePbkdf2(
+    await _decryptChacha20RandomNoncePbkdf2(
         cipherIvPbkdf2FilePath, decryptIvPbkdf2FilePath, password);
     var step9Elapsed = step9.elapsed;
     // check the data
@@ -472,11 +472,11 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
 
 
   // using random access file, nonce is stored in the destination file
-  _encryptChacha20Poly1305RandomNoncePbkdf2(String sourceFilePath, String destinationFilePath, String password) async {
+  _encryptChacha20RandomNoncePbkdf2(String sourceFilePath, String destinationFilePath, String password) async {
     final int bufferLength = 2048;
     final int saltLength = 32; // salt for pbkdf2
     final int PBKDF2_ITERATIONS = 15000;
-    final int nonceLength = 12; // nonce length
+    final int nonceLength = 8; // nonce length
     File fileSourceRaf = File(sourceFilePath);
     File fileDestRaf = File(destinationFilePath);
     RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
@@ -500,25 +500,24 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     final Uint8List nonce = _generateRandomByte(nonceLength);
     await rafW.writeFrom(nonce);
     // pointycastle cipher setup
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    //final cipher = pc.GCMBlockCipher(pc.AESEngine());
-    var aeadParameters = pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(true, aeadParameters); // true = encryption
-    Uint8List enc = Uint8List(bufferLength * 2);
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(true, parametersWithIV);
+    Uint8List enc = Uint8List(bufferLength);
     for (int rounds = 0; rounds < fullRounds; rounds++) {
       Uint8List bytesLoad = await rafR.read(bufferLength);
       var len = cipher.processBytes(bytesLoad, 0, bufferLength, enc, 0);
-      await rafW.writeFrom(enc.sublist(0, len));
+      await rafW.writeFrom(enc);
     }
     // last round
-    Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
     if (remainderLastRound > 0) {
+      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      enc = Uint8List(remainderLastRound);
       var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, enc, 0);
-      await rafW.writeFrom(enc.sublist(0, lenLast));
+      await rafW.writeFrom(enc);
     }
-    Uint8List outFinal = Uint8List(16);
-    var lenFinal = cipher.doFinal(outFinal, 0);
-    await rafW.writeFrom(outFinal.sublist(0, lenFinal));
     // close all files
     await rafW.flush();
     await rafW.close();
@@ -526,11 +525,11 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
   }
 
   // using random access file, nonce is stored in sourceFilePath
-  _decryptChacha20Poly1305RandomNoncePbkdf2(String sourceFilePath, String destinationFilePath, String password) async {
+  _decryptChacha20RandomNoncePbkdf2(String sourceFilePath, String destinationFilePath, String password) async {
     final int bufferLength = 2048;
     final int saltLength = 32; // salt for pbkdf2
     final int PBKDF2_ITERATIONS = 15000;
-    final int nonceLength = 12; // nonce length
+    final int nonceLength = 8; // nonce length
     File fileSourceRaf = File(sourceFilePath);
     File fileDestRaf = File(destinationFilePath);
     RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
@@ -554,35 +553,29 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     derivator.init(params);
     final key = derivator.process(passphrase);
     // pointycastle cipher setup
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    //final cipher = pc.GCMBlockCipher(pc.AESEngine());
-    var aeadParameters = pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(false, aeadParameters); // false = decryption
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(false, parametersWithIV);
     // now we are running the full rounds
-    // correct number of full rounds if remaininderLastRound == 0
-    if (remainderLastRound == 0) {
-      fullRounds = fullRounds - 1;
-      remainderLastRound = bufferLength;
-    }
     Uint8List dec = Uint8List(bufferLength * 2);
     for (int rounds = 0; rounds < fullRounds; rounds++) {
       Uint8List bytesLoad = await rafR.read(bufferLength);
       var len = cipher.processBytes(bytesLoad, 0, bufferLength, dec, 0);
-      await rafW.writeFrom(dec.sublist(0, len));
+      await rafW.writeFrom(dec);
     }
     // last round
     if (remainderLastRound > 0) {
       Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      dec = Uint8List(remainderLastRound);
       var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, dec, 0);
-      await rafW.writeFrom(dec.sublist(0, lenLast));
+      await rafW.writeFrom(dec);
     } else {
       /*
       do nothing
       */
     }
-    Uint8List outFinal = Uint8List(16);
-    var lenFinal = cipher.doFinal(outFinal, 0);
-    await rafW.writeFrom(outFinal.sublist(0, lenFinal));
     // close all files
     await rafW.flush();
     await rafW.close();
@@ -590,9 +583,9 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
   }
 
   // using random access file, nonce is stored in the destination file
-  _encryptChacha20Poly1305RandomNonce(String sourceFilePath, String destinationFilePath, Uint8List key) async {
+  _encryptChacha20RandomNonce(String sourceFilePath, String destinationFilePath, Uint8List key) async {
     final int bufferLength = 2048;
-    final int nonceLength = 12; // nonce length
+    final int nonceLength = 8; // nonce length
     File fileSourceRaf = File(sourceFilePath);
     File fileDestRaf = File(destinationFilePath);
     RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
@@ -607,25 +600,24 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     final Uint8List nonce = _generateRandomByte(nonceLength);
     await rafW.writeFrom(nonce);
     // pointycastle cipher setup
-    //final cipher = pc.GCMBlockCipher(pc.AESEngine());
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters = pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(true, aeadParameters); // true = encryption
-    Uint8List enc = Uint8List(bufferLength * 2);
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(true, parametersWithIV);
+    Uint8List enc = Uint8List(bufferLength);
     for (int rounds = 0; rounds < fullRounds; rounds++) {
       Uint8List bytesLoad = await rafR.read(bufferLength);
       var len = cipher.processBytes(bytesLoad, 0, bufferLength, enc, 0);
-      await rafW.writeFrom(enc.sublist(0, len));
+      await rafW.writeFrom(enc);
     }
     // last round
-    Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
     if (remainderLastRound > 0) {
+      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      enc = Uint8List(remainderLastRound);
       var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, enc, 0);
-      await rafW.writeFrom(enc.sublist(0, lenLast));
+      await rafW.writeFrom(enc);
     }
-    Uint8List outFinal = Uint8List(16);
-    var lenFinal = cipher.doFinal(outFinal, 0);
-    await rafW.writeFrom(outFinal.sublist(0, lenFinal));
     // close all files
     await rafW.flush();
     await rafW.close();
@@ -633,9 +625,9 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
   }
 
   // using random access file, nonce is stored in sourceFilePath
-  _decryptChacha20Poly1305RandomNonce(String sourceFilePath, String destinationFilePath, Uint8List key) async {
+  _decryptChacha20RandomNonce(String sourceFilePath, String destinationFilePath, Uint8List key) async {
     final int bufferLength = 2048;
-    final int nonceLength = 12;
+    final int nonceLength = 8;
     File fileSourceRaf = File(sourceFilePath);
     File fileDestRaf = File(destinationFilePath);
     RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
@@ -651,134 +643,36 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     // load nonce from file
     final Uint8List nonce = await rafR.read(nonceLength);
     // pointycastle cipher setup
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters = pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(false, aeadParameters); // false = decryption
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(false, parametersWithIV);
     // now we are running the full rounds
-    // correct number of full rounds if remaininderLastRound == 0
-    if (remainderLastRound == 0) {
-      fullRounds = fullRounds - 1;
-      remainderLastRound = bufferLength;
-    }
-    Uint8List dec = Uint8List(bufferLength * 2);
+    Uint8List dec = Uint8List(bufferLength);
     for (int rounds = 0; rounds < fullRounds; rounds++) {
       Uint8List bytesLoad = await rafR.read(bufferLength);
       var len = cipher.processBytes(bytesLoad, 0, bufferLength, dec, 0);
-      await rafW.writeFrom(dec.sublist(0, len));
+      await rafW.writeFrom(dec);
     }
     // last round
     if (remainderLastRound > 0) {
       Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      dec = Uint8List(remainderLastRound);
       var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, dec, 0);
-      await rafW.writeFrom(dec.sublist(0, lenLast));
+      await rafW.writeFrom(dec);
     } else {
       /*
       do nothing
       */
     }
-    Uint8List outFinal = Uint8List(16);
-    var lenFinal = cipher.doFinal(outFinal, 0);
-    await rafW.writeFrom(outFinal.sublist(0, lenFinal));
     // close all files
     await rafW.flush();
     await rafW.close();
     await rafR.close();
   }
 
-  // using random access file
-  _encryptChacha20Poly1305Step(String sourceFilePath, String destinationFilePath,
-      Uint8List key, Uint8List nonce) async {
-    //final int bufferLength = 2048;
-    final int bufferLength = 32;
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    print('bufferLength: ' +
-        bufferLength.toString() +
-        ' fileRLength: ' +
-        fileRLength.toString());
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' +
-        fullRounds.toString() +
-        ' remainderLastRound: ' +
-        remainderLastRound.toString());
-    // pointycastle cipher setup
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters =
-        pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(true, aeadParameters); // true = encryption
-
-    // step by step
-    // read in 32 byte blocks
-    print('Chacha20Poly1305 step by step');
-    print('bufferLength: ' + bufferLength.toString());
-    print('bytes 00 - 31');
-    Uint8List bytesLoad = await rafR.read(bufferLength);
-    print('01: ' + bytesToHex(bytesLoad));
-    var len = 0;
-    var enc01 = Uint8List((bufferLength * 2));
-    print('01 len: ' + len.toString());
-    //var enc01n = _processBytes(cipher, bytesLoad);
-    //len += cipher.processBytes(bytesLoad, len, bufferLength, enc01, len);
-    var len01 = cipher.processBytes(bytesLoad, 0, 32, enc01, 0);
-    await rafW.writeFrom(enc01.sublist(0, len01));
-    print('len01: ' + len01.toString());
-    print('enc01: ' + bytesToHex(enc01));
-    Uint8List bytesLoad02 = await rafR.read(bufferLength);
-    var len02 = cipher.processBytes(bytesLoad02, 0, 32, enc01, 0);
-    await rafW.writeFrom(enc01.sublist(0, len02));
-    print('len02: ' + len02.toString());
-    print('enc01: ' + bytesToHex(enc01));
-    print('expec: '
-        'dfa97d7787b04c497c519037cafa28debd3ef12e6b393d525223eb87f9a2d093d4d59c3c57defd3d937efb4f1d88a777fc3ffd1dc517376830d15be5588bbb554445c2ebfcf6b69b53ec4612bb8b69e7');
-    //
-    // print('01 len: ' + len.toString());
-    Uint8List out03 = Uint8List(16);
-    var len03 = cipher.doFinal(out03, 0);
-    print('len03: ' + len03.toString());
-    print('enc03: ' + bytesToHex(out03));
-    await rafW.writeFrom(out03.sublist(0, len03));
-return;
-
-    //var len = 0;
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      print('full round: ' + rounds.toString());
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      //var enc = Uint8List(cipher.getOutputSize(bytesLoad.length));
-      var enc = Uint8List(bufferLength);
-      print('enc length: ' + enc.length.toString());
-      len += cipher.processBytes(bytesLoad, len, bytesLoad.length, enc, len);
-      print('len: ' + len.toString());
-      print('enc length: ' + enc.length.toString());
-      print('content enc: ' + bytesToHex(enc));
-      await rafW.writeFrom(enc);
-    }
-    // last round
-    Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-    Uint8List enc = Uint8List(cipher.getOutputSize(remainderLastRound));
-    print('enc size: ' + enc.length.toString());
-    if (remainderLastRound > 0) {
-      print('bLL: ' + bytesToHex(bytesLoadLast));
-      print('len: ' + len.toString());
-      len += cipher.processBytes(
-          bytesLoadLast, len, bytesLoadLast.length, enc, len);
-      len += cipher.doFinal(enc, len); // get the mac
-      await rafW.writeFrom(enc);
-    }
-
-
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
-
-
-  _encryptChacha20Poly1305(String sourceFilePath, String destinationFilePath,
+  _encryptChacha20(String sourceFilePath, String destinationFilePath,
       Uint8List key, Uint8List nonce) async {
     final int bufferLength = 2048;
     File fileSourceRaf = File(sourceFilePath);
@@ -794,25 +688,24 @@ return;
         ' remainderLastRound: ' +
         remainderLastRound.toString());
     // pointycastle cipher setup
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters =
-        pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(true, aeadParameters); // true = encryption
-    Uint8List enc = Uint8List(bufferLength * 2);
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(true, parametersWithIV);
+    Uint8List enc = Uint8List(bufferLength);
     for (int rounds = 0; rounds < fullRounds; rounds++) {
       Uint8List bytesLoad = await rafR.read(bufferLength);
       var len = cipher.processBytes(bytesLoad, 0, bufferLength, enc, 0);
-      await rafW.writeFrom(enc.sublist(0, len));
+      await rafW.writeFrom(enc);
     }
     // last round
-    Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
     if (remainderLastRound > 0) {
+      enc = Uint8List(remainderLastRound);
+      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
       var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, enc, 0);
-      await rafW.writeFrom(enc.sublist(0, lenLast));
+      await rafW.writeFrom(enc);
     }
-    Uint8List outFinal = Uint8List(16);
-    var lenFinal = cipher.doFinal(outFinal, 0);
-    await rafW.writeFrom(outFinal.sublist(0, lenFinal));
     // close all files
     await rafW.flush();
     await rafW.close();
@@ -820,7 +713,7 @@ return;
   }
 
   // using random access file
-  _decryptChacha20Poly1305(String sourceFilePath, String destinationFilePath,
+  _decryptChacha20(String sourceFilePath, String destinationFilePath,
       Uint8List key, Uint8List nonce) async {
     final int bufferLength = 2048;
     File fileSourceRaf = File(sourceFilePath);
@@ -836,67 +729,58 @@ return;
         ' remainderLastRound: ' +
         remainderLastRound.toString());
     // pointycastle cipher setup
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters =
-        pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(false, aeadParameters); // false = decryption
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(false, parametersWithIV);
     // now we are running the full rounds
-    // correct number of full rounds if remaininderLastRound == 0
-    if (remainderLastRound == 0) {
-      fullRounds = fullRounds - 1;
-      remainderLastRound = bufferLength;
-    }
-    Uint8List dec = Uint8List(bufferLength * 2);
+    Uint8List dec = Uint8List(bufferLength);
     for (int rounds = 0; rounds < fullRounds; rounds++) {
       Uint8List bytesLoad = await rafR.read(bufferLength);
       var len = cipher.processBytes(bytesLoad, 0, bufferLength, dec, 0);
-      await rafW.writeFrom(dec.sublist(0, len));
+      await rafW.writeFrom(dec);
     }
     // last round
     if (remainderLastRound > 0) {
       Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
+      dec = Uint8List(remainderLastRound);
       var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, dec, 0);
-      await rafW.writeFrom(dec.sublist(0, lenLast));
+      await rafW.writeFrom(dec);
     } else {
       /*
       do nothing
       */
     }
-    Uint8List outFinal = Uint8List(16);
-    var lenFinal = cipher.doFinal(outFinal, 0);
-    await rafW.writeFrom(outFinal.sublist(0, lenFinal));
     // close all files
     await rafW.flush();
     await rafW.close();
     await rafR.close();
   }
 
-  // chacha20poly1305 encrypt in memory
-  Uint8List _encryptChacha20Poly1305Memory(
+  // chacha20 encrypt in memory
+  Uint8List _encryptChacha20Memory(
       Uint8List plaintext, Uint8List key, Uint8List nonce) {
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters =
-        pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(true, aeadParameters);
-    var enc = Uint8List(cipher.getOutputSize(plaintext.length));
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(true, parametersWithIV);
+    var enc = Uint8List(plaintext.length);
     var len = cipher.processBytes(plaintext, 0, plaintext.length, enc, 0);
-    len += cipher.doFinal(enc, len);
-    if (enc.length != len) {
-      throw StateError('');
-    }
     return enc;
   }
 
-  // chacha20poly1305 decrypt in memory
-  Uint8List _decryptChacha20Poly1305Memory(
+  // chacha20 decrypt in memory
+  Uint8List _decryptChacha20Memory(
       Uint8List ciphertext, Uint8List key, Uint8List nonce) {
-    final cipher = pc.ChaCha20Poly1305(pc.ChaCha7539Engine(), pc.Poly1305());
-    var aeadParameters =
-        pc.AEADParameters(pc.KeyParameter(key), 128, nonce, Uint8List(0));
-    cipher.init(false, aeadParameters);
-    var dec = Uint8List(cipher.getOutputSize(ciphertext.length));
+    final pc.StreamCipher cipher = pc.ChaCha20Engine();
+    pc.KeyParameter keyParameter = pc.KeyParameter(key);
+    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
+    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
+    cipher.init(false, parametersWithIV);
+    var dec = Uint8List(ciphertext.length);
     var len = cipher.processBytes(ciphertext, 0, ciphertext.length, dec, 0);
-    len += cipher.doFinal(dec, len);
     return dec;
   }
 }
