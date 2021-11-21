@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:pointycastle/export.dart' as pc;
+import 'package:flutter_sodium/flutter_sodium.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -32,7 +34,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'fc_file_encryption8_pc'),
+      home: const MyHomePage(title: 'fc_file_encryption9_pc_sodium'),
     );
   }
 }
@@ -122,7 +124,10 @@ class _MyHomePageState extends State<MyHomePage> {
           //await _runAesGcmEncryption();
 
           // Chacha20
-          await _runChacha20Encryption();
+          //await _runChacha20Encryption();
+
+          // Chacha20 sodium
+          await _runXChacha20Poly1305EncryptionSodium();
         },
         tooltip: 'Increment',
         child: const Icon(Icons.add),
@@ -130,9 +135,10 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  _runXChacha20Poly1305EncryptionSodium() async {
+    print('XChacha20 large file encryption SODIUM');
 
-  _runChacha20Encryption() async {
-    print('Chacha20 large file encryption');
+    Sodium.init();
 
     Directory directory = await getApplicationDocumentsDirectory();
     final String sourceFilePath = '${directory.path}/source_c.txt';
@@ -147,58 +153,23 @@ class _MyHomePageState extends State<MyHomePage> {
     final String decryptIvFilePath = '${directory.path}/decrypt_iv_c.txt';
     final String decryptNewFilePath = '${directory.path}/decrypt_new_c.txt';
 
-/* java reference FontWeight.values
-String keyString = "12345678123456781234567812345678";
-String nonceString = "765432107654";
-
-String plaintextString43 = "The quick brown fox jumps over the lazy dog";
-ciphertext length: 59
-data: dfa97d7787b04c497c519037cafa28debd3ef12e6b393d525223eb87f9a2d093d4d59c3c57defd3d937efb27b5e0600e39415e5bc6be6986952b11
-
-ciphertext without tag (base64): 36l9d4ewTEl8UZA3yvoo3r0+8S5rOT1SUiPrh/mi0JPU1Zw8V979PZN++w==
-tag (base64): J7XgYA45QV5bxr5phpUrEQ==
-
-
-String plaintextString64 = "The quick brown fox jumps over the lazy dogThe quick brown fox j";
-ciphertext length: 80
-data: dfa97d7787b04c497c519037cafa28debd3ef12e6b393d525223eb87f9a2d093d4d59c3c57defd3d937efb4f1d88a777fc3ffd1dc517376830d15be5588bbb554445c2ebfcf6b69b53ec4612bb8b69e7
-
-ciphertext without tag (base64): 36l9d4ewTEl8UZA3yvoo3r0+8S5rOT1SUiPrh/mi0JPU1Zw8V979PZN++08diKd3/D/9HcUXN2gw0VvlWIu7VQ==
-tag (base64): REXC6/z2tptT7EYSu4tp5w==
- */
-
     // fixed key and iv - this is just for testing purposes
     String keyString = '12345678123456781234567812345678'; // 32 chars
-    String nonceString = '76543210'; // 8 chars
+    //String nonceString = '76543210'; // 8 chars
     Uint8List key = createUint8ListFromString(keyString);
-    Uint8List nonce = createUint8ListFromString(nonceString);
+    //Uint8List nonce = createUint8ListFromString(nonceString);
     if (_fileExistsSync(sourceFilePath)) {
       _deleteFileSync(sourceFilePath);
     }
-/*
-    // generate a file for java reference
-    String plaintext43 = 'The quick brown fox jumps over the lazy dog';
-    String plaintext64 =
-        'The quick brown fox jumps over the lazy dogThe quick brown fox j';
-    final step1 = Stopwatch()..start();
-    _writeUint8List(sourceFilePath, createUint8ListFromString(plaintext64));
-*/
 
     // generate a 'large' file with random content
-    //final int testDataLength = (1024 * 1024); // 1 mb
-    final int testDataLength = (1024 * 7 + 0);
+    final int testDataLength = (1024 * 1024); // 1 mb
+    //final int testDataLength = (1024 * 7 + 0);
     final step1 = Stopwatch()..start();
     Uint8List randomData = _generateRandomByte(testDataLength);
-    _generateLargeFileSync(sourceFilePath, randomData, 1);
-    //_generateLargeFileSync(sourceFilePath, randomData, 50);
+    //_generateLargeFileSync(sourceFilePath, randomData, 1);
+    _generateLargeFileSync(sourceFilePath, randomData, 50);
 
-
-    /*
-          Uint8List randomData = _generateRandomByte(testDataLength);
-          //Uint8List randomData = _generateRandomByte((5));
-          // write data to file
-          _writeUint8ListSync(sourceFilePath, randomData);
-           */
     var step1Elapsed = step1.elapsed;
 
     print('\ndata for reference');
@@ -214,19 +185,8 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     //print('content source: ' + bytesToHex(plaintextLoad));
     //Uint8List ciphertextOld = Uint8List(1);
     /* out of memory 50 mb */
-    Uint8List ciphertextOld =
-        _encryptChacha20Memory(plaintextLoad, key, nonce);
-
-
-
-/*
-    print('content cipher: ' + bytesToHex(ciphertextOld));
-    print('expected 64cha: '
-        'dfa97d7787b04c497c519037cafa28debd3ef12e6b393d525223eb87f9a2d093d4d59c3c57defd3d937efb4f1d88a777fc3ffd1dc517376830d15be5588bbb554445c2ebfcf6b69b53ec4612bb8b69e7');
-    print('expected 43cha: '
-        'dfa97d7787b04c497c519037cafa28debd3ef12e6b393d525223eb87f9a2d093d4d59c3c57defd3d937efb27b5e0600e39415e5bc6be6986952b11');
-*/
-    _writeUint8ListSync(cipherOldFilePath, ciphertextOld);
+    EncryptionResult encResultCiphertextOld = await _encryptXChacha20Poly1305MemorySodium(plaintextLoad, key);
+    _writeUint8ListSync(cipherOldFilePath, encResultCiphertextOld.encryptedData);
     var step2Elapsed = step2.elapsed;
     Uint8List cipherOldSha256 = await _getSha256File(cipherOldFilePath);
     int cipherOldFileLength = await _getFileLength(cipherOldFilePath);
@@ -237,8 +197,7 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     Uint8List ciphertextOldLoad = await _readUint8ListSync(cipherOldFilePath);
     //Uint8List decrypttextOld = Uint8List(1);
     /* out of memory error 50 mb*/
-    Uint8List decrypttextOld =
-        _decryptChacha20Memory(ciphertextOldLoad, key, nonce);
+    Uint8List decrypttextOld = await _decryptXChacha20Poly1305MemorySodium(ciphertextOldLoad, key, encResultCiphertextOld.header);
     _writeUint8ListSync(decryptOldFilePath, decrypttextOld);
     var step3Elapsed = step3.elapsed;
     Uint8List decryptOldSha256 = await _getSha256File(decryptOldFilePath);
@@ -250,38 +209,51 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     //_deleteFileSync(cipherNewFilePath);
     //print('\nfile ' + cipherNewFilePath + ' deleted if existed');
 
-    print('\ndata encryption using RAF and chunks');
+    print('\ndata encryption using SODIUM');
+    // important: delete destinationFile before encryption
+    if (_fileExistsSync(cipherNewFilePath)) _deleteFileSync(cipherNewFilePath);
+    //print('\nfile ' + cipherNewFilePath + ' deleted if existed');
+
     // now encryption using chunks
     final step4 = Stopwatch()..start();
-    await _encryptChacha20(
-        sourceFilePath, cipherNewFilePath, key, nonce);
+    Uint8List encHeader = await _encryptXChacha20Poly1305Sodium(
+        sourceFilePath, cipherNewFilePath, key);
     var step4Elapsed = step4.elapsed;
     // check the data
-    Uint8List cipherNewSha256 = await _getSha256File(cipherNewFilePath);
-    int cipherNewFileLength = await _getFileLength(cipherNewFilePath);
-    print('cipherNewPath fileLength: ' + cipherNewFileLength.toString());
-    print('cipherNewPath SHA-256:  ' + bytesToHex(cipherNewSha256));
-    Uint8List cipherNew = _readUint8ListSync(cipherNewFilePath);
+    Uint8List cipherNewSha256S = await _getSha256File(cipherNewFilePath);
+    int cipherNewFileLengthS = await _getFileLength(cipherNewFilePath);
+    print('cipherNewPath fileLength: ' + cipherNewFileLengthS.toString());
+    print('cipherNewPath SHA-256:  ' + bytesToHex(cipherNewSha256S));
+    //Uint8List cipherNewS = _readUint8ListSync(cipherNewFilePath);
 
     // now decryption using chunks
-    print('\ndata decryption using RAF and chunks');
+    print('\ndata decryption using Sodium');
+    // important: delete destinationFile before encryption
+    if (_fileExistsSync(decryptNewFilePath)) _deleteFileSync(decryptNewFilePath);
     final step5 = Stopwatch()..start();
-    await _decryptChacha20(
-        cipherNewFilePath, decryptNewFilePath, key, nonce);
+    // get nonce from header
+    var nonceSodiumHeader = encHeader;
+    print('SODIUM header nonce: ' + bytesToHex(nonceSodiumHeader));
+
+    await _decryptXChacha20Poly1305Sodium(
+        cipherNewFilePath, decryptNewFilePath, key, nonceSodiumHeader);
     var step5Elapsed = step5.elapsed;
     // check the data
-    Uint8List decryptNewSha256 = await _getSha256File(decryptNewFilePath);
-    int decryptNewFileLength = await _getFileLength(decryptNewFilePath);
-    print('decryptNewPath fileLength: ' + decryptNewFileLength.toString());
-    print('decryptNewPath SHA-256:  ' + bytesToHex(decryptNewSha256));
-
-    //return;
+    Uint8List decryptNewSha256S = await _getSha256File(decryptNewFilePath);
+    int decryptNewFileLengthS = await _getFileLength(decryptNewFilePath);
+    print('decryptNewPath fileLength: ' + decryptNewFileLengthS.toString());
+    print('decryptNewPath SHA-256:  ' + bytesToHex(decryptNewSha256S));
 
     print(
-        '\ndata encryption using RAF and chunks with random iv stored in file');
+        '\ndata encryption using RAF and chunks with random iv stored in file SODIUM');
+
+    // important: delete destinationFile before encryption
+    if (_fileExistsSync(cipherIvFilePath)) _deleteFileSync(cipherIvFilePath);
+
     // now encryption using chunks
     final step6 = Stopwatch()..start();
-    await _encryptChacha20RandomNonce(sourceFilePath, cipherIvFilePath, key);
+    //await _encryptChacha20RandomNonce(sourceFilePath, cipherIvFilePath, key);
+    await _encryptXChacha20Poly1305RandomNonceSodium(sourceFilePath, cipherIvFilePath, key);
     var step6Elapsed = step6.elapsed;
     // check the data
     Uint8List cipherIvSha256 = await _getSha256File(cipherIvFilePath);
@@ -292,8 +264,12 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     // now decryption using chunks
     print(
         '\ndata decryption using RAF and chunks with random iv stored in file');
+
+    // important: delete destinationFile before encryption
+    if (_fileExistsSync(decryptIvFilePath)) _deleteFileSync(decryptIvFilePath);
+
     final step7 = Stopwatch()..start();
-    await _decryptChacha20RandomNonce(cipherIvFilePath, decryptIvFilePath, key);
+    await _decryptXChacha20Poly1305RandomNonceSodium(cipherIvFilePath, decryptIvFilePath, key);
     var step7Elapsed = step7.elapsed;
     // check the data
     Uint8List decryptIvSha256 = await _getSha256File(decryptIvFilePath);
@@ -304,14 +280,16 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     print(
         '\ndata encryption using RAF and chunks with random iv stored in file and PBKDF2 key derivation');
     // now encryption using chunks
+    // important: delete destinationFile before encryption
+    if (_fileExistsSync(cipherIvPbkdf2FilePath)) _deleteFileSync(cipherIvPbkdf2FilePath);
     String password = 'secret password';
     final step8 = Stopwatch()..start();
-    await _encryptChacha20RandomNoncePbkdf2(
+    await _encryptXChacha20Poly1305RandomNoncePbkdf2Sodium(
         sourceFilePath, cipherIvPbkdf2FilePath, password);
     var step8Elapsed = step8.elapsed;
     // check the data
     Uint8List cipherIvPbkdf2Sha256 =
-        await _getSha256File(cipherIvPbkdf2FilePath);
+    await _getSha256File(cipherIvPbkdf2FilePath);
     int cipherIvPbkdf2FileLength = await _getFileLength(cipherIvPbkdf2FilePath);
     print('cipherIvPbkdf2Path fileLength: ' +
         cipherIvPbkdf2FileLength.toString());
@@ -320,15 +298,17 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
     // now decryption using chunks
     print(
         '\ndata decryption using RAF and chunks with random iv stored in file and PBKDF2 key derivation');
+    // important: delete destinationFile before encryption
+    if (_fileExistsSync(decryptIvPbkdf2FilePath)) _deleteFileSync(decryptIvPbkdf2FilePath);
     final step9 = Stopwatch()..start();
-    await _decryptChacha20RandomNoncePbkdf2(
+    await _decryptXChacha20Poly1305RandomNoncePbkdf2Sodium(
         cipherIvPbkdf2FilePath, decryptIvPbkdf2FilePath, password);
     var step9Elapsed = step9.elapsed;
     // check the data
     Uint8List decryptIvPbkdf2Sha256 =
-        await _getSha256File(decryptIvPbkdf2FilePath);
+    await _getSha256File(decryptIvPbkdf2FilePath);
     int decryptIvPbkdf2FileLength =
-        await _getFileLength(decryptIvPbkdf2FilePath);
+    await _getFileLength(decryptIvPbkdf2FilePath);
     print('decryptIvPbkdf2Path fileLength: ' +
         decryptIvPbkdf2FileLength.toString());
     print(
@@ -345,19 +325,18 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
         step2Elapsed.inMicroseconds.toString());
     print('step 3 decrypt in memory:   ' +
         step3Elapsed.inMicroseconds.toString());
-    print('step 4 encrypt raf/chunked: ' +
+    print('step 4 encrypt chunked:     ' +
         step4Elapsed.inMicroseconds.toString());
-    print('step 5 decrypt raf/chunked: ' +
+    print('step 5 decrypt chunked:     ' +
         step5Elapsed.inMicroseconds.toString());
-    print('step 6 encrypt raf/chun iv: ' +
+    print('step 6 encrypt chunked iv:  ' +
         step6Elapsed.inMicroseconds.toString());
-    print('step 7 decrypt raf/chun iv: ' +
+    print('step 7 decrypt chunked iv:  ' +
         step7Elapsed.inMicroseconds.toString());
-    print('step 8 encrypt raf/chu PBK: ' +
+    print('step 8 encrypt chu PBKDF2:  ' +
         step8Elapsed.inMicroseconds.toString());
-    print('step 9 decrypt raf/chu PBK: ' +
+    print('step 9 decrypt chu PBKDF2:  ' +
         step9Elapsed.inMicroseconds.toString());
-
     // get list of files
     print('alle Dateien:\n');
     listFiles = await _getFiles();
@@ -365,6 +344,245 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
       print(listFiles[i]);
     }
   }
+
+  /*
+   * sodium methods start
+   */
+
+  Future<void> _encryptXChacha20Poly1305RandomNoncePbkdf2Sodium(String sourceFilePath, String destinationFilePath, String password) async {
+    //final int encryptionChunkSize = 4 * 1024 * 1024; // 4 mb
+    final int encryptionChunkSize = 2048;
+    final int decryptionChunkSize = encryptionChunkSize + Sodium.cryptoSecretstreamXchacha20poly1305Abytes;
+
+    // pbkdf2 key derivation
+    // sodium lib does not provide pbkdf2, using pointycastle for this task
+    final int saltLength = 32; // salt for pbkdf2
+    final int PBKDF2_ITERATIONS = 15000;
+    // derive key from password
+    var passphrase =  createUint8ListFromString(password);
+    final salt = _generateRandomByte(saltLength);
+    // generate and store salt in destination file
+    pc.KeyDerivator derivator = new pc.PBKDF2KeyDerivator(new pc.HMac(new pc.SHA256Digest(), 64));
+    pc.Pbkdf2Parameters params = new pc.Pbkdf2Parameters(salt, PBKDF2_ITERATIONS, 32);
+    derivator.init(params);
+    final key = derivator.process(passphrase);
+
+    final sourceFile = File(sourceFilePath);
+    final destinationFile = File(destinationFilePath);
+    final sourceFileLength = await sourceFile.length();
+    final inputFile = sourceFile.openSync(mode: FileMode.read);
+    final initPushResult =
+    Sodium.cryptoSecretstreamXchacha20poly1305InitPush(key);
+    // write salt and nonce to file
+    await destinationFile.writeAsBytes(salt, mode: FileMode.append);
+    await destinationFile.writeAsBytes(initPushResult.header, mode: FileMode.append);
+
+    var bytesRead = 0;
+    var tag = Sodium.cryptoSecretstreamXchacha20poly1305TagMessage;
+    while (tag != Sodium.cryptoSecretstreamXchacha20poly1305TagFinal) {
+      var chunkSize = encryptionChunkSize;
+      if (bytesRead + chunkSize >= sourceFileLength) {
+        chunkSize = sourceFileLength - bytesRead;
+        tag = Sodium.cryptoSecretstreamXchacha20poly1305TagFinal;
+      }
+      final buffer = inputFile.readSync(chunkSize);
+      bytesRead += chunkSize;
+      final encryptedData = Sodium.cryptoSecretstreamXchacha20poly1305Push(
+          initPushResult.state, buffer, null, tag);
+      await destinationFile.writeAsBytes(encryptedData, mode: FileMode.append);
+    }
+    inputFile.closeSync();
+    return;
+  }
+
+  Future<void> _decryptXChacha20Poly1305RandomNoncePbkdf2Sodium(String sourceFilePath, String destinationFilePath, String password) async {
+    //final int encryptionChunkSize = 4 * 1024 * 1024; // 4 mb
+    final int encryptionChunkSize = 2048;
+    final int decryptionChunkSize =
+        encryptionChunkSize + Sodium.cryptoSecretstreamXchacha20poly1305Abytes;
+    final int nonceLength = Sodium.cryptoSecretstreamXchacha20poly1305Headerbytes;
+    final decryptionStartTime = DateTime.now().millisecondsSinceEpoch;
+    final sourceFile = File(sourceFilePath);
+    final destinationFile = File(destinationFilePath);
+    int sourceFileLength = await sourceFile.length();
+    print("Decrypting file of size " + sourceFileLength.toString());
+    final inputFile = sourceFile.openSync(mode: FileMode.read);
+    // get salt and nonce from file
+    final int saltLength = 32; // salt for pbkdf2
+    final salt = inputFile.readSync(saltLength);
+    final nonce = inputFile.readSync(nonceLength);
+    // pbkdf2 key derivation
+    // sodium lib does not provide pbkdf2, using pointycastle for this task
+    final int PBKDF2_ITERATIONS = 15000;
+    // derive key from password
+    var passphrase =  createUint8ListFromString(password);
+    // generate and store salt in destination file
+    pc.KeyDerivator derivator = new pc.PBKDF2KeyDerivator(new pc.HMac(new pc.SHA256Digest(), 64));
+    pc.Pbkdf2Parameters params = new pc.Pbkdf2Parameters(salt, PBKDF2_ITERATIONS, 32);
+    derivator.init(params);
+    final key = derivator.process(passphrase);
+    final pullState = Sodium.cryptoSecretstreamXchacha20poly1305InitPull(nonce, key);
+    var bytesRead = 0;
+    // correct sourceFileLength for saltLength and nonceLength
+    sourceFileLength = sourceFileLength - saltLength - nonceLength;
+    var tag = Sodium.cryptoSecretstreamXchacha20poly1305TagMessage;
+    while (tag != Sodium.cryptoSecretstreamXchacha20poly1305TagFinal) {
+      var chunkSize = decryptionChunkSize;
+      if (bytesRead + chunkSize >= sourceFileLength) {
+        chunkSize = sourceFileLength - bytesRead;
+      }
+      final buffer = inputFile.readSync(chunkSize);
+      bytesRead += chunkSize;
+      final pullResult =
+      Sodium.cryptoSecretstreamXchacha20poly1305Pull(pullState, buffer, null);
+      await destinationFile.writeAsBytes(pullResult.m, mode: FileMode.append);
+      tag = pullResult.tag;
+    }
+    inputFile.closeSync();
+  }
+
+  Future<void> _encryptXChacha20Poly1305RandomNonceSodium(String sourceFilePath, String destinationFilePath, Uint8List key) async {
+    //final int encryptionChunkSize = 4 * 1024 * 1024; // 4 mb
+    final int encryptionChunkSize = 2048;
+    final int decryptionChunkSize = encryptionChunkSize + Sodium.cryptoSecretstreamXchacha20poly1305Abytes;
+    final sourceFile = File(sourceFilePath);
+    final destinationFile = File(destinationFilePath);
+    final sourceFileLength = await sourceFile.length();
+    final inputFile = sourceFile.openSync(mode: FileMode.read);
+    final initPushResult =
+    Sodium.cryptoSecretstreamXchacha20poly1305InitPush(key);
+    await destinationFile.writeAsBytes(initPushResult.header, mode: FileMode.append);
+
+    var bytesRead = 0;
+    var tag = Sodium.cryptoSecretstreamXchacha20poly1305TagMessage;
+    while (tag != Sodium.cryptoSecretstreamXchacha20poly1305TagFinal) {
+      var chunkSize = encryptionChunkSize;
+      if (bytesRead + chunkSize >= sourceFileLength) {
+        chunkSize = sourceFileLength - bytesRead;
+        tag = Sodium.cryptoSecretstreamXchacha20poly1305TagFinal;
+      }
+      final buffer = inputFile.readSync(chunkSize);
+      bytesRead += chunkSize;
+      final encryptedData = Sodium.cryptoSecretstreamXchacha20poly1305Push(
+          initPushResult.state, buffer, null, tag);
+      await destinationFile.writeAsBytes(encryptedData, mode: FileMode.append);
+    }
+    inputFile.closeSync();
+    return;
+  }
+
+  Future<void> _decryptXChacha20Poly1305RandomNonceSodium(String sourceFilePath, String destinationFilePath, Uint8List key) async {
+    //final int encryptionChunkSize = 4 * 1024 * 1024; // 4 mb
+    final int encryptionChunkSize = 2048;
+    final int decryptionChunkSize =
+        encryptionChunkSize + Sodium.cryptoSecretstreamXchacha20poly1305Abytes;
+    final int nonceLength = Sodium.cryptoSecretstreamXchacha20poly1305Headerbytes;
+    final sourceFile = File(sourceFilePath);
+    final destinationFile = File(destinationFilePath);
+    int sourceFileLength = await sourceFile.length();
+    final inputFile = sourceFile.openSync(mode: FileMode.read);
+    // get nonce from file
+    final nonce = inputFile.readSync(nonceLength);
+    final pullState = Sodium.cryptoSecretstreamXchacha20poly1305InitPull(nonce, key);
+
+    // correct sourceFileLength for nonceLength
+    sourceFileLength = sourceFileLength - nonceLength;
+
+    var bytesRead = 0;
+    var tag = Sodium.cryptoSecretstreamXchacha20poly1305TagMessage;
+    while (tag != Sodium.cryptoSecretstreamXchacha20poly1305TagFinal) {
+      var chunkSize = decryptionChunkSize;
+      if (bytesRead + chunkSize >= sourceFileLength) {
+        chunkSize = sourceFileLength - bytesRead;
+      }
+      final buffer = inputFile.readSync(chunkSize);
+      bytesRead += chunkSize;
+      final pullResult =
+      Sodium.cryptoSecretstreamXchacha20poly1305Pull(pullState, buffer, null);
+      await destinationFile.writeAsBytes(pullResult.m, mode: FileMode.append);
+      tag = pullResult.tag;
+    }
+    inputFile.closeSync();
+  }
+
+  Future<Uint8List> _encryptXChacha20Poly1305Sodium(String sourceFilePath, String destinationFilePath, Uint8List key) async {
+    //final int encryptionChunkSize = 4 * 1024 * 1024; // 4 mb
+    final int encryptionChunkSize = 2048;
+    final int decryptionChunkSize = encryptionChunkSize + Sodium.cryptoSecretstreamXchacha20poly1305Abytes;
+    final sourceFile = File(sourceFilePath);
+    final destinationFile = File(destinationFilePath);
+    final sourceFileLength = await sourceFile.length();
+    final inputFile = sourceFile.openSync(mode: FileMode.read);
+    final initPushResult =
+    Sodium.cryptoSecretstreamXchacha20poly1305InitPush(key);
+    var bytesRead = 0;
+    var tag = Sodium.cryptoSecretstreamXchacha20poly1305TagMessage;
+    while (tag != Sodium.cryptoSecretstreamXchacha20poly1305TagFinal) {
+      var chunkSize = encryptionChunkSize;
+      if (bytesRead + chunkSize >= sourceFileLength) {
+        chunkSize = sourceFileLength - bytesRead;
+        tag = Sodium.cryptoSecretstreamXchacha20poly1305TagFinal;
+      }
+      final buffer = inputFile.readSync(chunkSize);
+      bytesRead += chunkSize;
+      final encryptedData = Sodium.cryptoSecretstreamXchacha20poly1305Push(
+          initPushResult.state, buffer, null, tag);
+      await destinationFile.writeAsBytes(encryptedData, mode: FileMode.append);
+    }
+    inputFile.closeSync();
+    return initPushResult.header;
+  }
+
+  Future<void> _decryptXChacha20Poly1305Sodium(String sourceFilePath, String destinationFilePath, Uint8List key, Uint8List nonce) async {
+    //final int encryptionChunkSize = 4 * 1024 * 1024; // 4 mb
+    final int encryptionChunkSize = 2048;
+    final int decryptionChunkSize =
+        encryptionChunkSize + Sodium.cryptoSecretstreamXchacha20poly1305Abytes;
+    final sourceFile = File(sourceFilePath);
+    final destinationFile = File(destinationFilePath);
+    final sourceFileLength = await sourceFile.length();
+    final inputFile = sourceFile.openSync(mode: FileMode.read);
+    final pullState = Sodium.cryptoSecretstreamXchacha20poly1305InitPull(nonce, key);
+
+    var bytesRead = 0;
+    var tag = Sodium.cryptoSecretstreamXchacha20poly1305TagMessage;
+    while (tag != Sodium.cryptoSecretstreamXchacha20poly1305TagFinal) {
+      var chunkSize = decryptionChunkSize;
+      if (bytesRead + chunkSize >= sourceFileLength) {
+        chunkSize = sourceFileLength - bytesRead;
+      }
+      final buffer = inputFile.readSync(chunkSize);
+      bytesRead += chunkSize;
+      final pullResult =
+      Sodium.cryptoSecretstreamXchacha20poly1305Pull(pullState, buffer, null);
+      await destinationFile.writeAsBytes(pullResult.m, mode: FileMode.append);
+      tag = pullResult.tag;
+    }
+    inputFile.closeSync();
+  }
+
+  Future<EncryptionResult> _encryptXChacha20Poly1305MemorySodium(Uint8List sourceData, Uint8List key) async {
+    final initPushResult =
+    Sodium.cryptoSecretstreamXchacha20poly1305InitPush(key);
+    final encryptedData = Sodium.cryptoSecretstreamXchacha20poly1305Push(
+        initPushResult.state,
+        sourceData,
+        null,
+        Sodium.cryptoSecretstreamXchacha20poly1305TagFinal);
+    return EncryptionResult(encryptedData: encryptedData, header: initPushResult.header, key: Uint8List(0), nonce: Uint8List(0));
+  }
+
+  Future<Uint8List> _decryptXChacha20Poly1305MemorySodium(Uint8List sourceData, Uint8List key, Uint8List header) async {
+    final pullState = Sodium.cryptoSecretstreamXchacha20poly1305InitPull(header, key);
+    final pullResult = Sodium.cryptoSecretstreamXchacha20poly1305Pull(
+        pullState, sourceData, null);
+    return pullResult.m;
+  }
+
+  /*
+   * sodium methods end
+   */
+
 
   Uint8List _processBlocks(pc.BlockCipher cipher, Uint8List inp) {
     var out = new Uint8List(inp.lengthInBytes);
@@ -471,319 +689,18 @@ tag (base64): REXC6/z2tptT7EYSu4tp5w==
   }
 
 
-  // using random access file, nonce is stored in the destination file
-  _encryptChacha20RandomNoncePbkdf2(String sourceFilePath, String destinationFilePath, String password) async {
-    final int bufferLength = 2048;
-    final int saltLength = 32; // salt for pbkdf2
-    final int PBKDF2_ITERATIONS = 15000;
-    final int nonceLength = 8; // nonce length
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    print('bufferLength: ' + bufferLength.toString() + ' fileRLength: ' + fileRLength.toString());
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' + fullRounds.toString() + ' remainderLastRound: ' + remainderLastRound.toString());
-    // derive key from password
-    var passphrase =  createUint8ListFromString(password);
-    final salt = _generateRandomByte(saltLength);
-    // generate and store salt in destination file
-    await rafW.writeFrom(salt);
-    pc.KeyDerivator derivator = new pc.PBKDF2KeyDerivator(new pc.HMac(new pc.SHA256Digest(), 64));
-    pc.Pbkdf2Parameters params = new pc.Pbkdf2Parameters(salt, PBKDF2_ITERATIONS, 32);
-    derivator.init(params);
-    final key = derivator.process(passphrase);
-    // generate and store nonce in destination file
-    final Uint8List nonce = _generateRandomByte(nonceLength);
-    await rafW.writeFrom(nonce);
-    // pointycastle cipher setup
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(true, parametersWithIV);
-    Uint8List enc = Uint8List(bufferLength);
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      var len = cipher.processBytes(bytesLoad, 0, bufferLength, enc, 0);
-      await rafW.writeFrom(enc);
-    }
-    // last round
-    if (remainderLastRound > 0) {
-      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-      enc = Uint8List(remainderLastRound);
-      var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, enc, 0);
-      await rafW.writeFrom(enc);
-    }
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
 
-  // using random access file, nonce is stored in sourceFilePath
-  _decryptChacha20RandomNoncePbkdf2(String sourceFilePath, String destinationFilePath, String password) async {
-    final int bufferLength = 2048;
-    final int saltLength = 32; // salt for pbkdf2
-    final int PBKDF2_ITERATIONS = 15000;
-    final int nonceLength = 8; // nonce length
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    // correct fileLength because of salt and nonce
-    fileRLength = fileRLength - saltLength - nonceLength;
-    print('bufferLength: ' + bufferLength.toString() + ' fileRLength: ' + fileRLength.toString());
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' + fullRounds.toString() + ' remainderLastRound: ' + remainderLastRound.toString());
-    // derive key from password
-    // load salt from file
-    final Uint8List salt = await rafR.read(saltLength);
-    // load nonce from file
-    final Uint8List nonce = await rafR.read(nonceLength);
-    var passphrase =  createUint8ListFromString(password);
-    pc.KeyDerivator derivator = new pc.PBKDF2KeyDerivator(new pc.HMac(new pc.SHA256Digest(), 64));
-    pc.Pbkdf2Parameters params = new pc.Pbkdf2Parameters(salt, PBKDF2_ITERATIONS, 32);
-    derivator.init(params);
-    final key = derivator.process(passphrase);
-    // pointycastle cipher setup
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(false, parametersWithIV);
-    // now we are running the full rounds
-    Uint8List dec = Uint8List(bufferLength * 2);
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      var len = cipher.processBytes(bytesLoad, 0, bufferLength, dec, 0);
-      await rafW.writeFrom(dec);
-    }
-    // last round
-    if (remainderLastRound > 0) {
-      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-      dec = Uint8List(remainderLastRound);
-      var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, dec, 0);
-      await rafW.writeFrom(dec);
-    } else {
-      /*
-      do nothing
-      */
-    }
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
-
-  // using random access file, nonce is stored in the destination file
-  _encryptChacha20RandomNonce(String sourceFilePath, String destinationFilePath, Uint8List key) async {
-    final int bufferLength = 2048;
-    final int nonceLength = 8; // nonce length
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    print('bufferLength: ' + bufferLength.toString() + ' fileRLength: ' + fileRLength.toString());
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' + fullRounds.toString() + ' remainderLastRound: ' + remainderLastRound.toString());
-    // generate and store iv in destination file
-    final Uint8List nonce = _generateRandomByte(nonceLength);
-    await rafW.writeFrom(nonce);
-    // pointycastle cipher setup
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(true, parametersWithIV);
-    Uint8List enc = Uint8List(bufferLength);
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      var len = cipher.processBytes(bytesLoad, 0, bufferLength, enc, 0);
-      await rafW.writeFrom(enc);
-    }
-    // last round
-    if (remainderLastRound > 0) {
-      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-      enc = Uint8List(remainderLastRound);
-      var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, enc, 0);
-      await rafW.writeFrom(enc);
-    }
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
-
-  // using random access file, nonce is stored in sourceFilePath
-  _decryptChacha20RandomNonce(String sourceFilePath, String destinationFilePath, Uint8List key) async {
-    final int bufferLength = 2048;
-    final int nonceLength = 8;
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    // correct fileLength because of nonce
-    fileRLength = fileRLength - nonceLength;
-    print('bufferLength: ' + bufferLength.toString() + ' fileRLength: ' + fileRLength.toString());
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' + fullRounds.toString() + ' remainderLastRound: ' + remainderLastRound.toString());
-    // load nonce from file
-    final Uint8List nonce = await rafR.read(nonceLength);
-    // pointycastle cipher setup
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(false, parametersWithIV);
-    // now we are running the full rounds
-    Uint8List dec = Uint8List(bufferLength);
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      var len = cipher.processBytes(bytesLoad, 0, bufferLength, dec, 0);
-      await rafW.writeFrom(dec);
-    }
-    // last round
-    if (remainderLastRound > 0) {
-      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-      dec = Uint8List(remainderLastRound);
-      var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, dec, 0);
-      await rafW.writeFrom(dec);
-    } else {
-      /*
-      do nothing
-      */
-    }
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
-
-  _encryptChacha20(String sourceFilePath, String destinationFilePath,
-      Uint8List key, Uint8List nonce) async {
-    final int bufferLength = 2048;
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' +
-        fullRounds.toString() +
-        ' remainderLastRound: ' +
-        remainderLastRound.toString());
-    // pointycastle cipher setup
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(true, parametersWithIV);
-    Uint8List enc = Uint8List(bufferLength);
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      var len = cipher.processBytes(bytesLoad, 0, bufferLength, enc, 0);
-      await rafW.writeFrom(enc);
-    }
-    // last round
-    if (remainderLastRound > 0) {
-      enc = Uint8List(remainderLastRound);
-      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-      var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, enc, 0);
-      await rafW.writeFrom(enc);
-    }
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
-
-  // using random access file
-  _decryptChacha20(String sourceFilePath, String destinationFilePath,
-      Uint8List key, Uint8List nonce) async {
-    final int bufferLength = 2048;
-    File fileSourceRaf = File(sourceFilePath);
-    File fileDestRaf = File(destinationFilePath);
-    RandomAccessFile rafR = await fileSourceRaf.open(mode: FileMode.read);
-    RandomAccessFile rafW = await fileDestRaf.open(mode: FileMode.write);
-    var fileRLength = await rafR.length();
-    await rafR.setPosition(0); // from position 0
-    int fullRounds = fileRLength ~/ bufferLength;
-    int remainderLastRound = (fileRLength % bufferLength) as int;
-    print('fullRounds: ' +
-        fullRounds.toString() +
-        ' remainderLastRound: ' +
-        remainderLastRound.toString());
-    // pointycastle cipher setup
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(false, parametersWithIV);
-    // now we are running the full rounds
-    Uint8List dec = Uint8List(bufferLength);
-    for (int rounds = 0; rounds < fullRounds; rounds++) {
-      Uint8List bytesLoad = await rafR.read(bufferLength);
-      var len = cipher.processBytes(bytesLoad, 0, bufferLength, dec, 0);
-      await rafW.writeFrom(dec);
-    }
-    // last round
-    if (remainderLastRound > 0) {
-      Uint8List bytesLoadLast = await rafR.read(remainderLastRound);
-      dec = Uint8List(remainderLastRound);
-      var lenLast = cipher.processBytes(bytesLoadLast, 0, remainderLastRound, dec, 0);
-      await rafW.writeFrom(dec);
-    } else {
-      /*
-      do nothing
-      */
-    }
-    // close all files
-    await rafW.flush();
-    await rafW.close();
-    await rafR.close();
-  }
-
-  // chacha20 encrypt in memory
-  Uint8List _encryptChacha20Memory(
-      Uint8List plaintext, Uint8List key, Uint8List nonce) {
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(true, parametersWithIV);
-    var enc = Uint8List(plaintext.length);
-    var len = cipher.processBytes(plaintext, 0, plaintext.length, enc, 0);
-    return enc;
-  }
-
-  // chacha20 decrypt in memory
-  Uint8List _decryptChacha20Memory(
-      Uint8List ciphertext, Uint8List key, Uint8List nonce) {
-    final pc.StreamCipher cipher = pc.ChaCha20Engine();
-    pc.KeyParameter keyParameter = pc.KeyParameter(key);
-    pc.ParametersWithIV<pc.KeyParameter> parametersWithIV =
-    pc.ParametersWithIV<pc.KeyParameter>(keyParameter, nonce);
-    cipher.init(false, parametersWithIV);
-    var dec = Uint8List(ciphertext.length);
-    var len = cipher.processBytes(ciphertext, 0, ciphertext.length, dec, 0);
-    return dec;
-  }
 }
+
+class EncryptionResult {
+  final Uint8List encryptedData;
+  final Uint8List key;
+  final Uint8List header;
+  final Uint8List nonce;
+
+  EncryptionResult({required this.encryptedData, required this.key, required this.header, required this.nonce});
+}
+
 
 /* AES CBC
 android:
@@ -852,7 +769,6 @@ flutter: step 9 decrypt raf/chu PBK: 60435652
 
 /* Chacha20Poly1305
 Android:
-I/flutter ( 4963): *********** benchmark all steps ************
 I/flutter ( 4963): step 1 generate data:       315153
 flutter: testDataLength:             1048576 bytes * 50 = 50 mb
 I/flutter ( 4963): step 2 encrypt in memory:   6742542
@@ -875,13 +791,45 @@ flutter: step 6 encrypt raf/chun iv: 8435973
 flutter: step 7 decrypt raf/chun iv: 8528780
 flutter: step 8 encrypt raf/chu PBK: 9275988
 flutter: step 9 decrypt raf/chu PBK: 9346414
+*/
 
-vorläufig
-flutter: step 1 generate data:       351212
+/* XChacha20Poly1305 sodium
+Android:
+I/flutter ( 7579): step 1 generate data:       231547
 flutter: testDataLength:             1048576 bytes * 50 = 50 mb
-flutter: step 2 encrypt in memory:   9340931
-flutter: step 3 decrypt in memory:   5659174
-flutter: step 4 encrypt raf/chunked: 7516397
-flutter: step 5 decrypt raf/chunked: 7718705
+I/flutter ( 7579): step 2 encrypt in memory:   952089
+I/flutter ( 7579): step 3 decrypt in memory:   1040524
+I/flutter ( 7579): step 4 encrypt chunked:     9983348
+I/flutter ( 7579): step 5 decrypt chunked:     9984282
+I/flutter ( 7579): step 6 encrypt chunked iv:  10041586
+I/flutter ( 7579): step 7 decrypt chunked iv:  10578522
+I/flutter ( 7579): step 8 encrypt chu PBKDF2:  10374414
+I/flutter ( 7579): step 9 decrypt chu PBKDF2:  10593808
+
+iOS:
+flutter: step 1 generate data:       326920
+flutter: testDataLength:             1048576 bytes * 50 = 50 mb
+flutter: step 2 encrypt in memory:   798152
+flutter: step 3 decrypt in memory:   762671
+flutter: step 4 encrypt chunked:     4960497
+flutter: step 5 decrypt chunked:     4821315
+flutter: step 6 encrypt chunked iv:  4742871
+flutter: step 7 decrypt chunked iv:  4851293
+flutter: step 8 encrypt chu PBKDF2:  5434428
+flutter: step 9 decrypt chu PBKDF2:  9218499
+*/
+
+/*
+chacha20Poly1305 pc
+flutter: step 4 encrypt raf/chunked: 8523476
+flutter: step 5 decrypt raf/chunked: 8721167
+
+xChacha20Poly1305 2048 byte buffer
+flutter: step 4 encrypt raf/chunked: 4901964
+flutter: step 5 decrypt raf/chunked: 4990996
+
+xChacha20Poly1305 4 mb buffer
+flutter: step 4 encrypt raf/chunked: 988920
+flutter: step 5 decrypt raf/chunked: 1071354
 
  */
